@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="apps_title">TestFlight</string>
+    <string name="refresh">Refresh</string>
+    <string name="install">Install</string>
+    <string name="installing_percent">Installing %1$d%%</string>
+    <string name="installing">Installing…</string>
+    <string name="verifying">Verifying…</string>
+    <string name="opening_installer">Opening…</string>
+    <string name="empty_title">No apps yet</string>
+    <string name="empty_body">Add app folders to the server volume.</string>
+    <string name="error_title">Can\'t load apps</string>
+    <string name="retry">Retry</string>
+    <string name="no_builds">No builds</string>
+    <string name="allow_installs">Allow installs from this app, then tap Install again.</string>
+    <string name="installer_opened">Installer opened</string>
+    <string name="settings_unavailable">Can\'t open install settings</string>
+    <string name="refresh_content_description">Refresh apps</string>
+    <string name="install_content_description">Install %1$s</string>
+    <string name="app_icon_content_description">Icon of %1$s</string>
+</resources>

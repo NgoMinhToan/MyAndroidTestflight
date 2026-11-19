@@ -1,0 +1,6 @@
+# Base URL of the TestFlight server.
+# Emulators reach the host machine through 10.0.2.2; physical devices need the
+# host's LAN address (or `adb reverse tcp:8080 tcp:8080` plus http://127.0.0.1:8080).
+#
+# You can also override it per build: ./gradlew :app:assembleDebug -Pserver_url=http://127.0.0.1:8080
+server_url=http://10.0.2.2:8080
