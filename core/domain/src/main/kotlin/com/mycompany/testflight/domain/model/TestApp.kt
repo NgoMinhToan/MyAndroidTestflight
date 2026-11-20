@@ -6,4 +6,7 @@ data class TestApp(
     val packageName: String,
     val iconUrl: String?,
     val latestVersion: AppVersion?,
+    val description: String = "",
+    val developer: String = "",
+    val versionCount: Int = 0,
 )

@@ -8,5 +8,5 @@ data class AppVersion(
     val publishedAt: String,
     val sizeBytes: Long,
     val sha256: String?,
-    val downloadUrl: String,
+    val downloadPath: String,
 )

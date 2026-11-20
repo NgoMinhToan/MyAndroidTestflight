@@ -2,53 +2,65 @@ package com.mycompany.testflight.feature.applist
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.mycompany.testflight.domain.installer.InstallStatus
 import com.mycompany.testflight.domain.model.TestApp
+import com.mycompany.testflight.domain.settings.ServerSettingsRepository
 import com.mycompany.testflight.domain.usecase.GetAppsUseCase
-import com.mycompany.testflight.domain.usecase.InstallAppUseCase
+import com.mycompany.testflight.feature.applist.install.InstallCoordinator
+import com.mycompany.testflight.feature.applist.install.InstallEvent
+import com.mycompany.testflight.feature.applist.install.InstallState
+import com.mycompany.testflight.feature.applist.ui.toUiText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.onCompletion
-import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 @HiltViewModel
 class AppListViewModel @Inject constructor(
     private val getApps: GetAppsUseCase,
-    private val installApp: InstallAppUseCase,
+    private val installCoordinator: InstallCoordinator,
+    serverSettings: ServerSettingsRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AppListUiState())
     val uiState: StateFlow<AppListUiState> = _uiState.asStateFlow()
 
-    private val eventChannel = Channel<AppListEvent>(Channel.BUFFERED)
-    val events: Flow<AppListEvent> = eventChannel.receiveAsFlow()
+    val installState: StateFlow<InstallState> = installCoordinator.state
+    val events: SharedFlow<InstallEvent> = installCoordinator.events
+
+    private var loadJob: Job? = null
 
     init {
         refresh()
+        viewModelScope.launch {
+            serverSettings.serverUrl
+                .drop(1)
+                .distinctUntilChanged()
+                .collect { refresh() }
+        }
+    }
+
+    fun onQueryChange(query: String) {
+        _uiState.update { it.copy(query = query) }
     }
 
     fun refresh() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
             getApps().fold(
                 onSuccess = { apps ->
                     _uiState.update { it.copy(apps = apps, isLoading = false) }
                 },
                 onFailure = { error ->
                     _uiState.update {
-                        it.copy(
-                            errorMessage = error.message ?: "Unable to load apps",
-                            isLoading = false,
-                        )
+                        it.copy(error = error.toUiText(), isLoading = false)
                     }
                 },
             )
@@ -57,79 +69,6 @@ class AppListViewModel @Inject constructor(
 
     fun install(app: TestApp) {
         val version = app.latestVersion ?: return
-        if (_uiState.value.installingAppId != null) return
-
-        _uiState.update {
-            it.copy(
-                installingAppId = app.id,
-                installStage = InstallStage.Downloading,
-                downloadProgress = null,
-            )
-        }
-
-        viewModelScope.launch {
-            installApp(app, version)
-                .catch { error ->
-                    if (error is CancellationException) throw error
-                    eventChannel.send(AppListEvent.Message(error.message ?: "Install failed"))
-                    resetInstall(app.id)
-                }
-                .onCompletion { resetInstall(app.id) }
-                .collect(::handleStatus)
-        }
-    }
-
-    private fun handleStatus(status: InstallStatus) {
-        when (status) {
-            is InstallStatus.Downloading -> _uiState.update { state ->
-                val total = status.totalBytes
-                val progress = if (total != null && total > 0) {
-                    (status.downloadedBytes.toFloat() / total.toFloat()).coerceIn(0f, 1f)
-                } else {
-                    null
-                }
-                state.copy(
-                    installStage = InstallStage.Downloading,
-                    downloadProgress = progress,
-                )
-            }
-
-            InstallStatus.Verifying -> _uiState.update {
-                it.copy(installStage = InstallStage.Verifying)
-            }
-
-            InstallStatus.LaunchingInstaller -> _uiState.update {
-                it.copy(installStage = InstallStage.Launching)
-            }
-
-            InstallStatus.PermissionRequired -> {
-                eventChannel.trySend(AppListEvent.OpenInstallPermissionSettings)
-                resetInstall()
-            }
-
-            InstallStatus.InstallerLaunched -> {
-                eventChannel.trySend(AppListEvent.InstallerOpened)
-                resetInstall()
-            }
-
-            is InstallStatus.Failed -> {
-                eventChannel.trySend(AppListEvent.Message(status.message))
-                resetInstall()
-            }
-        }
-    }
-
-    private fun resetInstall(appId: String? = null) {
-        _uiState.update { state ->
-            if (appId != null && state.installingAppId != appId) {
-                state
-            } else {
-                state.copy(
-                    installingAppId = null,
-                    installStage = null,
-                    downloadProgress = null,
-                )
-            }
-        }
+        installCoordinator.install(app, version)
     }
 }

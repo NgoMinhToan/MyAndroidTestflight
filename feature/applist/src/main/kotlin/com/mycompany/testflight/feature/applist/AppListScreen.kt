@@ -1,292 +1,555 @@
 package com.mycompany.testflight.feature.applist
 
-import android.text.format.Formatter
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Card
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.mycompany.testflight.designsystem.MyTestflightTheme
+import com.mycompany.testflight.designsystem.components.FriendlySnackbarHost
+import com.mycompany.testflight.designsystem.components.HandleBar
+import com.mycompany.testflight.designsystem.components.PillButton
+import com.mycompany.testflight.designsystem.components.PillStyle
+import com.mycompany.testflight.designsystem.components.ScreenState
+import com.mycompany.testflight.designsystem.components.SectionHeader
+import com.mycompany.testflight.designsystem.components.SheetSurface
+import com.mycompany.testflight.designsystem.components.headerBleed
+import com.mycompany.testflight.designsystem.components.sheetTopFade
+import com.mycompany.testflight.designsystem.components.rememberSyncedTextFieldState
+import com.mycompany.testflight.designsystem.text.UiText
+import com.mycompany.testflight.designsystem.text.asString
+import com.mycompany.testflight.designsystem.tokens.AppAccentPalette
+import com.mycompany.testflight.designsystem.tokens.FriendlyType
+import com.mycompany.testflight.designsystem.tokens.TestflightColors
 import com.mycompany.testflight.domain.model.AppVersion
 import com.mycompany.testflight.domain.model.TestApp
+import com.mycompany.testflight.feature.applist.components.AppRow
+import com.mycompany.testflight.feature.applist.components.AppRowModel
+import com.mycompany.testflight.feature.applist.install.InstallStage
+import com.mycompany.testflight.feature.applist.install.InstallState
+import com.mycompany.testflight.feature.applist.search.filterApps
+import com.mycompany.testflight.feature.applist.ui.COLLAPSE_MAX_FLING_PROGRESS
+import com.mycompany.testflight.feature.applist.ui.formatShortFileSize
+import com.mycompany.testflight.feature.applist.ui.settleCollapseTarget
 import kotlin.math.roundToInt
+
+private enum class ListStateKey { Loading, Error, Empty, NoResults, Content }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppListScreen(
     uiState: AppListUiState,
+    installState: InstallState,
     snackbarHostState: SnackbarHostState,
     onRefresh: () -> Unit,
+    onQueryChange: (String) -> Unit,
     onInstall: (TestApp) -> Unit,
+    onOpenApp: (String) -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(
-        modifier = modifier,
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.apps_title)) },
-                actions = {
-                    IconButton(onClick = onRefresh, enabled = !uiState.isLoading) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = stringResource(R.string.refresh_content_description),
-                        )
-                    }
+    val context = LocalContext.current
+    val visibleApps = remember(uiState.apps, uiState.query) {
+        filterApps(uiState.apps, uiState.query)
+    }
+    val rowModels = remember(visibleApps, context) {
+        visibleApps.map { app ->
+            val version = app.latestVersion
+            AppRowModel(
+                app = app,
+                accent = AppAccentPalette.colorFor(app.id),
+                versionSummary = if (version == null) {
+                    context.getString(R.string.no_builds)
+                } else {
+                    context.getString(
+                        R.string.list_version_summary,
+                        version.versionName,
+                        formatShortFileSize(context, version.sizeBytes),
+                    )
                 },
             )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
-            when {
-                uiState.isLoading && uiState.apps.isEmpty() ->
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+        }
+    }
+    val readyCount = remember(uiState.apps) {
+        uiState.apps.count { it.latestVersion != null }
+    }
+    val stateKey = when {
+        uiState.isLoading && uiState.apps.isEmpty() -> ListStateKey.Loading
+        uiState.error != null && uiState.apps.isEmpty() -> ListStateKey.Error
+        uiState.apps.isEmpty() -> ListStateKey.Empty
+        visibleApps.isEmpty() -> ListStateKey.NoResults
+        else -> ListStateKey.Content
+    }
+    val installBusy = installState.isActive
+    var headerOffsetPx by remember { mutableFloatStateOf(0f) }
+    var headerFullHeightPx by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(stateKey) {
+        if (stateKey != ListStateKey.Content) {
+            headerOffsetPx = 0f
+        }
+    }
+    val headerNestedScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                val max = headerFullHeightPx
+                if (max <= 0f) return Offset.Zero
+                val up = -available.y
+                if (up <= 0f) return Offset.Zero
+                val current = headerOffsetPx
+                val new = (current + up).coerceAtMost(max)
+                val consumed = new - current
+                if (consumed <= 0f) return Offset.Zero
+                headerOffsetPx = new
+                return Offset(0f, -consumed)
+            }
 
-                uiState.errorMessage != null && uiState.apps.isEmpty() ->
-                    ErrorPanel(
-                        message = uiState.errorMessage,
-                        onRetry = onRefresh,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource,
+            ): Offset {
+                val down = available.y
+                if (down <= 0f) return Offset.Zero
+                val current = headerOffsetPx
+                if (current <= 0f) return Offset.Zero
+                val new = (current - down).coerceAtLeast(0f)
+                val consumedDown = current - new
+                if (consumedDown <= 0f) return Offset.Zero
+                headerOffsetPx = new
+                return Offset(0f, consumedDown)
+            }
 
-                uiState.apps.isEmpty() ->
-                    EmptyPanel(modifier = Modifier.align(Alignment.Center))
+            override suspend fun onPreFling(available: Velocity): Velocity {
+                val max = headerFullHeightPx
+                if (max <= 0f) return Velocity.Zero
+                val fraction = (headerOffsetPx / max).coerceIn(0f, 1f)
+                if (fraction <= 0f || fraction >= 1f) return Velocity.Zero
+                // Positive when the fling would keep collapsing the hero.
+                val progressVelocity = -available.y / max
+                val target = settleCollapseTarget(fraction, progressVelocity)
+                animate(
+                    initialValue = fraction,
+                    targetValue = target,
+                    initialVelocity = progressVelocity.coerceIn(
+                        -COLLAPSE_MAX_FLING_PROGRESS,
+                        COLLAPSE_MAX_FLING_PROGRESS,
+                    ),
+                    animationSpec = spring(
+                        dampingRatio = 0.9f,
+                        stiffness = Spring.StiffnessMediumLow,
+                    ),
+                ) { value, _ -> headerOffsetPx = value.coerceIn(0f, 1f) * max }
+                headerOffsetPx = target * max
+                return available
+            }
+        }
+    }
 
-                else -> LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    items(
-                        items = uiState.apps,
-                        key = { app -> app.id },
-                        contentType = { "app" },
-                    ) { app ->
-                        AppRow(
-                            app = app,
-                            isActive = uiState.installingAppId == app.id,
-                            stage = uiState.installStage,
-                            progress = uiState.downloadProgress,
-                            installEnabled = uiState.installingAppId == null,
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(TestflightColors.Coral),
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            ListHero(
+                apps = uiState.apps,
+                readyCount = readyCount,
+                query = uiState.query,
+                collapseOffsetPx = { headerOffsetPx },
+                onCollapsibleHeight = { headerFullHeightPx = it.toFloat() },
+                onQueryChange = onQueryChange,
+            )
+            SheetSurface(
+                modifier = Modifier.weight(1f),
+            ) {
+                HandleBar(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(top = 14.dp, bottom = 4.dp),
+                )
+                AnimatedContent(
+                    targetState = stateKey,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    transitionSpec = {
+                        fadeIn(tween(160)) togetherWith fadeOut(tween(120))
+                    },
+                    contentAlignment = Alignment.TopCenter,
+                    label = "listState",
+                ) { key ->
+                    when (key) {
+                        ListStateKey.Loading -> Box(
+                            Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            ScreenState(
+                                kicker = stringResource(R.string.list_loading_kicker),
+                                title = stringResource(R.string.list_loading_title),
+                                body = stringResource(R.string.list_loading_body),
+                                actions = {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(28.dp),
+                                        color = TestflightColors.CoralStrong,
+                                        trackColor = TestflightColors.Cream,
+                                        strokeWidth = 3.dp,
+                                    )
+                                },
+                            )
+                        }
+
+                        ListStateKey.Error -> Box(
+                            Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            ScreenState(
+                                kicker = stringResource(R.string.list_error_kicker),
+                                title = stringResource(R.string.error_title),
+                                body = uiState.error?.asString()
+                                    ?: stringResource(R.string.error_unexpected),
+                                actions = {
+                                    PillButton(
+                                        text = stringResource(R.string.retry),
+                                        onClick = onRefresh,
+                                    )
+                                    PillButton(
+                                        text = stringResource(R.string.list_open_settings),
+                                        onClick = onOpenSettings,
+                                        style = PillStyle.Cream,
+                                    )
+                                },
+                            )
+                        }
+
+                        ListStateKey.Empty -> Box(
+                            Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            ScreenState(
+                                kicker = stringResource(R.string.list_empty_kicker),
+                                title = stringResource(R.string.empty_title),
+                                body = stringResource(R.string.empty_body),
+                                actions = {
+                                    PillButton(
+                                        text = stringResource(R.string.retry),
+                                        onClick = onRefresh,
+                                        style = PillStyle.Cream,
+                                    )
+                                },
+                            )
+                        }
+
+                        ListStateKey.NoResults -> Box(
+                            Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            ScreenState(
+                                kicker = stringResource(R.string.list_no_results_kicker),
+                                title = stringResource(R.string.search_no_results_title),
+                                body = stringResource(
+                                    R.string.search_no_results_body,
+                                    uiState.query,
+                                ),
+                            )
+                        }
+
+                        ListStateKey.Content -> ContentList(
+                            query = uiState.query,
+                            itemCount = visibleApps.size,
+                            rowModels = rowModels,
+                            installBusy = installBusy,
+                            installState = installState,
+                            isLoading = uiState.isLoading,
+                            nestedScrollConnection = headerNestedScroll,
+                            onRefresh = onRefresh,
+                            onOpenApp = onOpenApp,
                             onInstall = onInstall,
                         )
                     }
                 }
             }
         }
+        FriendlySnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp),
+        )
     }
 }
 
 @Composable
-private fun ErrorPanel(
-    message: String,
-    onRetry: () -> Unit,
+private fun ListHero(
+    apps: List<TestApp>,
+    readyCount: Int,
+    query: String,
+    /** Read in layout/draw so collapsing the hero never recomposes it. */
+    collapseOffsetPx: () -> Float,
+    onCollapsibleHeight: (Int) -> Unit,
+    onQueryChange: (String) -> Unit,
+) {
+    var fullHeightPx by remember { mutableFloatStateOf(0f) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .headerBleed(TestflightColors.Coral)
+            .statusBarsPadding(),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clipToBounds()
+                .collapseVertically(collapseOffsetPx),
+        ) {
+            Column(
+                modifier = Modifier
+                    .onSizeChanged {
+                        fullHeightPx = it.height.toFloat()
+                        onCollapsibleHeight(it.height)
+                    }
+                    .graphicsLayer {
+                        alpha = if (fullHeightPx > 0f) {
+                            1f - (collapseOffsetPx() / fullHeightPx).coerceIn(0f, 1f)
+                        } else {
+                            1f
+                        }
+                    }
+                    .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 14.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.list_kicker),
+                    style = FriendlyType.Kicker,
+                    color = TestflightColors.Navy.copy(alpha = 0.82f),
+                )
+                Text(
+                    text = stringResource(R.string.apps_title),
+                    style = FriendlyType.Hero,
+                    color = TestflightColors.Navy,
+                )
+                if (apps.isNotEmpty()) {
+                    Spacer(Modifier.height(7.dp))
+                    Text(
+                        text = pluralStringResource(
+                            R.plurals.list_ready_count,
+                            readyCount,
+                            readyCount,
+                        ),
+                        style = FriendlyType.Subtitle,
+                        color = TestflightColors.Navy.copy(alpha = 0.9f),
+                    )
+                }
+            }
+        }
+        SearchField(
+            query = query,
+            onQueryChange = onQueryChange,
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
+        Spacer(Modifier.height(14.dp))
+    }
+}
+
+private fun Modifier.collapseVertically(offsetPx: () -> Float): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val collapse = offsetPx().roundToInt().coerceIn(0, placeable.height)
+    layout(placeable.width, placeable.height - collapse) {
+        placeable.place(0, -collapse)
+    }
+}
+
+@Composable
+private fun SearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier.padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(R.string.error_title),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(16.dp))
-        TextButton(onClick = onRetry) {
-            Text(stringResource(R.string.retry))
-        }
-    }
-}
-
-@Composable
-private fun EmptyPanel(modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier.padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text(
-            text = stringResource(R.string.empty_title),
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.empty_body),
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
-
-@Composable
-private fun AppRow(
-    app: TestApp,
-    isActive: Boolean,
-    stage: InstallStage?,
-    progress: Float?,
-    installEnabled: Boolean,
-    onInstall: (TestApp) -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            AppIcon(app)
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = app.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = app.packageName,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = versionLine(app.latestVersion),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                )
+    val state = rememberSyncedTextFieldState(query, onQueryChange)
+    TextField(
+        state = state,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp),
+        textStyle = FriendlyType.SearchText.copy(color = TestflightColors.Navy),
+        placeholder = {
+            Text(
+                text = stringResource(R.string.search_hint),
+                style = FriendlyType.SearchText,
+                color = TestflightColors.Navy.copy(alpha = 0.55f),
+                maxLines = 1,
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Filled.Search,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+            )
+        },
+        trailingIcon = if (state.text.isNotEmpty()) {
+            {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = stringResource(
+                            R.string.search_clear_content_description,
+                        ),
+                    )
+                }
             }
-            Spacer(Modifier.width(12.dp))
-            InstallButton(
-                app = app,
-                isActive = isActive,
-                stage = stage,
-                progress = progress,
-                enabled = installEnabled && app.latestVersion != null,
-                onClick = { onInstall(app) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun AppIcon(app: TestApp) {
-    Box(
-        modifier = Modifier
-            .size(56.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer),
-        contentAlignment = Alignment.Center,
-    ) {
-        LetterTile(app.name)
-        val iconUrl = app.iconUrl
-        if (iconUrl != null) {
-            AsyncImage(
-                model = iconUrl,
-                contentDescription = stringResource(R.string.app_icon_content_description, app.name),
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-    }
-}
-
-@Composable
-private fun LetterTile(name: String) {
-    Text(
-        text = name.take(1).uppercase(),
-        style = MaterialTheme.typography.titleLarge,
-        color = MaterialTheme.colorScheme.onSecondaryContainer,
+        } else {
+            null
+        },
+        lineLimits = TextFieldLineLimits.SingleLine,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        shape = RoundedCornerShape(28.dp),
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = TestflightColors.White,
+            unfocusedContainerColor = TestflightColors.White.copy(alpha = 0.72f),
+            disabledContainerColor = TestflightColors.White.copy(alpha = 0.5f),
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+            disabledIndicatorColor = Color.Transparent,
+            cursorColor = TestflightColors.Navy,
+            focusedTextColor = TestflightColors.Navy,
+            unfocusedTextColor = TestflightColors.Navy,
+            focusedPlaceholderColor = TestflightColors.Navy.copy(alpha = 0.55f),
+            unfocusedPlaceholderColor = TestflightColors.Navy.copy(alpha = 0.55f),
+            focusedLeadingIconColor = TestflightColors.Navy.copy(alpha = 0.8f),
+            unfocusedLeadingIconColor = TestflightColors.Navy.copy(alpha = 0.8f),
+            focusedTrailingIconColor = TestflightColors.Navy,
+            unfocusedTrailingIconColor = TestflightColors.Navy,
+        ),
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun versionLine(version: AppVersion?): String {
-    if (version == null) return stringResource(R.string.no_builds)
-    val size = Formatter.formatShortFileSize(LocalContext.current, version.sizeBytes)
-    return "v${version.versionName} · $size"
-}
-
-@Composable
-private fun InstallButton(
-    app: TestApp,
-    isActive: Boolean,
-    stage: InstallStage?,
-    progress: Float?,
-    enabled: Boolean,
-    onClick: () -> Unit,
+private fun ContentList(
+    query: String,
+    itemCount: Int,
+    rowModels: List<AppRowModel>,
+    installBusy: Boolean,
+    installState: InstallState,
+    isLoading: Boolean,
+    nestedScrollConnection: NestedScrollConnection,
+    onRefresh: () -> Unit,
+    onOpenApp: (String) -> Unit,
+    onInstall: (TestApp) -> Unit,
 ) {
-    val label = when {
-        !isActive -> stringResource(R.string.install)
-
-        stage == InstallStage.Downloading && progress != null ->
-            stringResource(R.string.installing_percent, (progress * 100).roundToInt())
-
-        stage == InstallStage.Downloading -> stringResource(R.string.installing)
-        stage == InstallStage.Verifying -> stringResource(R.string.verifying)
-        stage == InstallStage.Launching -> stringResource(R.string.opening_installer)
-        else -> stringResource(R.string.install)
-    }
-    val description = stringResource(R.string.install_content_description, app.name)
-
-    FilledTonalButton(
-        onClick = onClick,
-        enabled = enabled,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        modifier = Modifier.semantics { contentDescription = description },
+    val listState = rememberLazyListState()
+    PullToRefreshBox(
+        isRefreshing = isLoading,
+        onRefresh = onRefresh,
+        modifier = Modifier.fillMaxSize(),
     ) {
-        if (isActive) {
-            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-            Spacer(Modifier.width(8.dp))
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(nestedScrollConnection)
+                .sheetTopFade(
+                    scrollOffsetPx = {
+                        if (listState.firstVisibleItemIndex > 0) {
+                            Float.MAX_VALUE
+                        } else {
+                            listState.firstVisibleItemScrollOffset.toFloat()
+                        }
+                    },
+                ),
+            contentPadding = PaddingValues(bottom = 16.dp),
+        ) {
+            item(key = "section", contentType = "section") {
+                SectionHeader(
+                    title = if (query.isBlank()) {
+                        stringResource(R.string.list_all_apps)
+                    } else {
+                        stringResource(R.string.list_results_for, query)
+                    },
+                    trailing = pluralStringResource(
+                        R.plurals.list_item_count,
+                        itemCount,
+                        itemCount,
+                    ),
+                    modifier = Modifier.padding(
+                        start = 18.dp,
+                        end = 18.dp,
+                        top = 2.dp,
+                        bottom = 6.dp,
+                    ),
+                )
+            }
+            items(
+                items = rowModels,
+                key = { model -> model.app.id },
+                contentType = { "app" },
+            ) { model ->
+                AppRow(
+                    model = model,
+                    installBusy = installBusy,
+                    rowInstall = installState.takeIf { it.appId == model.app.id },
+                    onOpenApp = onOpenApp,
+                    onInstall = onInstall,
+                )
+            }
         }
-        Text(text = label, maxLines = 1)
     }
 }
 
@@ -298,7 +561,7 @@ private val previewVersion = AppVersion(
     publishedAt = "2026-11-19T08:00:00.000Z",
     sizeBytes = 7_340_032L,
     sha256 = null,
-    downloadUrl = "http://10.0.2.2:8080/api/v1/apps/crm/versions/1.4.2/download",
+    downloadPath = "/api/v1/apps/crm/versions/1.4.2/download",
 )
 
 private val previewApps = listOf(
@@ -308,6 +571,9 @@ private val previewApps = listOf(
         packageName = "com.company.crm",
         iconUrl = null,
         latestVersion = previewVersion,
+        description = "CRM for the internal sales team",
+        developer = "Platform Team",
+        versionCount = 3,
     ),
     TestApp(
         id = "ops",
@@ -318,63 +584,79 @@ private val previewApps = listOf(
     ),
 )
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, widthDp = 360, heightDp = 780)
 @Composable
 private fun AppListLoadedPreview() {
     MyTestflightTheme {
         AppListScreen(
             uiState = AppListUiState(isLoading = false, apps = previewApps),
+            installState = InstallState(),
             snackbarHostState = remember { SnackbarHostState() },
             onRefresh = {},
+            onQueryChange = {},
             onInstall = {},
+            onOpenApp = {},
+            onOpenSettings = {},
         )
     }
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, widthDp = 360, heightDp = 780)
 @Composable
 private fun AppListEmptyPreview() {
     MyTestflightTheme {
         AppListScreen(
             uiState = AppListUiState(isLoading = false),
+            installState = InstallState(),
             snackbarHostState = remember { SnackbarHostState() },
             onRefresh = {},
+            onQueryChange = {},
             onInstall = {},
+            onOpenApp = {},
+            onOpenSettings = {},
         )
     }
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, widthDp = 360, heightDp = 780)
 @Composable
 private fun AppListErrorPreview() {
     MyTestflightTheme {
         AppListScreen(
             uiState = AppListUiState(
                 isLoading = false,
-                errorMessage = "Can't reach the server",
+                error = UiText.Res(R.string.error_network),
             ),
+            installState = InstallState(),
             snackbarHostState = remember { SnackbarHostState() },
             onRefresh = {},
+            onQueryChange = {},
             onInstall = {},
+            onOpenApp = {},
+            onOpenSettings = {},
         )
     }
 }
 
-@Preview(showBackground = true)
+@Preview(showBackground = true, widthDp = 360, heightDp = 780)
 @Composable
 private fun AppListInstallingPreview() {
     MyTestflightTheme {
         AppListScreen(
-            uiState = AppListUiState(
-                isLoading = false,
-                apps = previewApps,
-                installingAppId = "crm",
-                installStage = InstallStage.Downloading,
-                downloadProgress = 0.42f,
+            uiState = AppListUiState(isLoading = false, apps = previewApps),
+            installState = InstallState(
+                appId = "crm",
+                appName = "Internal CRM",
+                versionName = "1.4.2",
+                stage = InstallStage.Downloading,
+                progress = 0.42f,
             ),
             snackbarHostState = remember { SnackbarHostState() },
             onRefresh = {},
+            onQueryChange = {},
             onInstall = {},
+            onOpenApp = {},
+            onOpenSettings = {},
         )
     }
 }

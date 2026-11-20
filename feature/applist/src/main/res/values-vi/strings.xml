@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="apps_title">TestFlight</string>
+    <string name="refresh">Làm mới</string>
+    <string name="install">Cài đặt</string>
+    <string name="installing_percent">Đang cài %1$d%%</string>
+    <string name="installing">Đang cài…</string>
+    <string name="verifying">Đang xác minh…</string>
+    <string name="opening_installer">Đang mở…</string>
+    <string name="empty_title">Chưa có ứng dụng</string>
+    <string name="empty_body">Thêm thư mục ứng dụng vào ổ dữ liệu của máy chủ.</string>
+    <string name="error_title">Không tải được ứng dụng</string>
+    <string name="retry">Thử lại</string>
+    <string name="no_builds">Chưa có bản dựng</string>
+    <string name="allow_installs">Hãy cho phép cài đặt từ ứng dụng này, sau đó nhấn Cài đặt lại.</string>
+    <string name="installer_opened">Đã mở trình cài đặt</string>
+    <string name="settings_unavailable">Không mở được phần cài đặt quyền</string>
+    <string name="refresh_content_description">Làm mới danh sách ứng dụng</string>
+    <string name="install_content_description">Cài đặt %1$s</string>
+    <string name="app_icon_content_description">Biểu tượng của %1$s</string>
+
+    <string name="list_version_summary">v%1$s · %2$s</string>
+
+    <string name="search_hint">Tìm ứng dụng</string>
+    <string name="search_clear_content_description">Xoá tìm kiếm</string>
+    <string name="search_no_results_title">Không tìm thấy ứng dụng</string>
+    <string name="search_no_results_body">Không có ứng dụng nào khớp với “%1$s”.</string>
+
+    <string name="error_network">Không kết nối được máy chủ.</string>
+    <string name="error_server_http_format">Máy chủ trả về HTTP %1$d.</string>
+    <string name="error_invalid_server_url">Địa chỉ máy chủ không hợp lệ. Hãy mở Cài đặt và kiểm tra.</string>
+    <string name="error_app_not_found">Ứng dụng này không có trên máy chủ.</string>
+    <string name="error_unexpected">Đã xảy ra lỗi.</string>
+
+    <string name="install_error_http_format">Tải xuống thất bại với HTTP %1$d.</string>
+    <string name="install_error_empty_body">Máy chủ trả về tệp APK rỗng.</string>
+    <string name="install_error_checksum">Mã kiểm tra của APK không khớp.</string>
+    <string name="install_error_no_installer">Không có trình cài đặt APK.</string>
+    <string name="install_error_invalid_server_url">Địa chỉ máy chủ không hợp lệ.</string>
+    <string name="install_error_io">Tải xuống thất bại. Hãy kiểm tra kết nối.</string>
+    <string name="install_error_unexpected">Cài đặt thất bại.</string>
+
+    <string name="detail_title">Chi tiết ứng dụng</string>
+    <string name="detail_back_content_description">Quay lại</string>
+    <string name="detail_about_title">Giới thiệu</string>
+    <string name="detail_developer_format">Bởi %1$s</string>
+    <string name="detail_no_description">Không có mô tả.</string>
+    <string name="detail_versions_title">Phiên bản (%1$d)</string>
+    <string name="detail_latest_badge">Mới nhất</string>
+    <string name="detail_version_name_format">Phiên bản %1$s</string>
+    <string name="detail_version_code_format">Mã phiên bản %1$d</string>
+    <string name="detail_min_sdk_format">SDK tối thiểu %1$d</string>
+    <string name="detail_size_format">Dung lượng: %1$s</string>
+    <string name="detail_published_format">Phát hành %1$s</string>
+    <string name="detail_release_notes_title">Ghi chú phát hành</string>
+    <string name="detail_no_release_notes">Không có ghi chú phát hành.</string>
+    <string name="detail_install_version_content_description">Cài đặt %1$s phiên bản %2$s</string>
+    <string name="detail_no_versions">Chưa có bản dựng.</string>
+
+    <string name="list_kicker">Bản dựng nội bộ</string>
+    <plurals name="list_ready_count">
+        <item quantity="other">%1$d ứng dụng đã sẵn sàng để cài</item>
+    </plurals>
+    <string name="list_all_apps">Tất cả ứng dụng</string>
+    <string name="list_results_for">Kết quả cho “%1$s”</string>
+    <plurals name="list_item_count">
+        <item quantity="other">%1$d mục</item>
+    </plurals>
+    <string name="list_loading_kicker">Đang tải</string>
+    <string name="list_loading_title">Đang hỏi máy chủ…</string>
+    <string name="list_loading_body">Danh sách sẽ hiện ngay khi có phản hồi.</string>
+    <string name="list_error_kicker">Lỗi kết nối</string>
+    <string name="list_open_settings">Mở Cài đặt</string>
+    <string name="list_no_results_kicker">Không có kết quả</string>
+    <string name="list_empty_kicker">Danh sách trống</string>
+    <string name="list_clear">XOÁ</string>
+
+    <string name="detail_dev_internal">%1$s · nội bộ</string>
+    <string name="detail_dev_internal_fallback">Bản dựng nội bộ</string>
+    <string name="detail_latest_tag">v%1$s · mới nhất</string>
+    <string name="detail_version_short">v%1$s</string>
+    <string name="detail_versions_section">Phiên bản</string>
+    <plurals name="detail_versions_count">
+        <item quantity="other">%1$d bản dựng</item>
+    </plurals>
+    <string name="detail_version_meta">code %1$d · minSdk %2$d · %3$s</string>
+    <string name="detail_version_meta_no_sdk">code %1$d · %2$s</string>
+    <string name="detail_install_this_version">Cài phiên bản này</string>
+    <string name="detail_loading_title">Đang tải ứng dụng…</string>
+    <string name="detail_error_title">Không tải được ứng dụng này</string>
+</resources>

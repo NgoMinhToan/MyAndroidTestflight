@@ -2,7 +2,6 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.library)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
@@ -17,13 +16,15 @@ val serverUrl: String = providers.gradleProperty("server_url").orNull
     ?: "http://10.0.2.2:8080"
 
 val normalizedServerUrl = serverUrl.trim().trimEnd('/')
-require(Regex("^https?://\\S+$").matches(normalizedServerUrl)) {
-    "Invalid server_url \"$serverUrl\": expected an http(s) URL, for example http://10.0.2.2:8080"
+require(Regex("^https?://[^/@?#\\s]+/?$").matches(normalizedServerUrl)) {
+    "Invalid server_url \"$serverUrl\": expected an http(s) origin without a path, " +
+        "for example http://10.0.2.2:8080"
 }
 
 android {
     namespace = "com.mycompany.testflight.data"
-    compileSdk = 35
+    compileSdk = 37
+    compileSdkMinor = 2
 
     defaultConfig {
         minSdk = 26
@@ -33,10 +34,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
     }
 
     buildFeatures {
@@ -56,4 +53,7 @@ dependencies {
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

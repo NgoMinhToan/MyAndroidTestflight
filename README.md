@@ -1,38 +1,71 @@
 # MyAndroidTestflight
 
-Kotlin 2.1.10 + Jetpack Compose client for the internal TestFlight server. One screen lists the
-catalog; Install downloads the APK, verifies its optional SHA-256, and opens the Android package
-installer.
+Kotlin 2.4.21 + Jetpack Compose client for the internal TestFlight server. The app has an Apps tab
+with search, a detail screen that lists every published version, and a Settings tab for the server
+URL. Install downloads the APK from the current server, verifies its optional SHA-256, and opens
+the Android package installer. The UI follows the approved "Friendly" design (coral header, white
+sheets, pastel app tiles, Plus Jakarta Sans + IBM Plex Mono) and supports predictive back with an
+iOS-style slide transition.
 
 ## Modules
 
 | Module | Responsibility |
 |---|---|
-| `:app` | `TestflightApplication`, `MainActivity`, manifest, launcher icon |
-| `:core:domain` | models, `AppRepository`, `ApkInstaller`, use cases, `AppError` |
-| `:core:data` | Retrofit API/DTOs, repository implementation, APK downloader, Hilt modules, FileProvider |
-| `:core:designsystem` | `MyTestflightTheme` |
-| `:feature:applist` | screen, ViewModel, UI state/events, unit tests |
+| `:app` | application, `MainActivity`, bottom navigation/NavHost, application-scope Hilt module, launcher icon |
+| `:core:domain` | models, repositories, `ApkInstaller`, use cases, typed errors, application-scope qualifier |
+| `:core:data` | Retrofit API/DTOs, repository/installer implementations, runtime server settings, BaseUrlInterceptor, Hilt modules, FileProvider |
+| `:core:designsystem` | `MyTestflightTheme`, Friendly tokens/components, bundled fonts, `UiText` resource abstraction |
+| `:feature:applist` | catalog + detail screens, search, ViewModels, install coordinator, unit tests |
+| `:feature:settings` | settings screen/ViewModel for the server URL, unit tests |
 
 ## Build and test
 
+Requires JDK 17+ (AGP 9.5 / Gradle 9.9) and Android SDK platform 37.2
+(`sdkmanager "platforms;android-37.2"`). If your shell default is older, run
+`JAVA_HOME=$(/usr/libexec/java_home -v 17) ./gradlew …` on macOS.
+
 ```bash
-./gradlew :feature:applist:testDebugUnitTest
-./gradlew :app:assembleDebug
+./gradlew :core:domain:test :core:data:testDebugUnitTest \
+  :feature:applist:testDebugUnitTest :feature:settings:testDebugUnitTest \
+  :app:testDebugUnitTest :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+## Screens
+
+- **Apps** — searchable catalog (name, package, description, developer; Vietnamese diacritics are
+  ignored). Pull to refresh. Tapping a row opens the detail screen; the install pill and progress
+  line stay in the row.
+- **App details** — coral/pastel header with the app's accent, description, developer, version count,
+  and every version newest-first with version code, min SDK, size, localized publish date, release
+  notes, a Latest badge, and an install action per version. Predictive back and the header back
+  button slide the screen to the right over a parallaxed list. Downloads continue while navigating
+  between screens because `InstallCoordinator` runs on an application-scoped coroutine.
+- **Settings** — edits the server URL, validates it, restores the build default, and shows inline
+  errors in the current locale.
+
+The UI is localized in English (`values/`) and Vietnamese (`values-vi/`), follows the system
+locale, and declares `locales_config.xml` so Android 13+ also allows per-app language selection.
+User-visible text lives in string resources; errors travel from domain/data as typed values and are
+rendered through `UiText`.
 
 A debug build is produced at `app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Server URL
 
-Resolution order (first match wins):
+The URL has a build-time default and a runtime override:
 
-1. Gradle property: `./gradlew :app:assembleDebug -Pserver_url=http://127.0.0.1:8080`
-2. `server_url` in `local.properties` (not committed; copy `local.properties.example`)
-3. `http://10.0.2.2:8080`
+1. **Runtime (Settings tab):** saved in `SharedPreferences` (`server_settings` / `server_url`) and
+   applied immediately through `BaseUrlInterceptor`; no app restart is needed. The catalog and
+   detail screens reload on change. Reset removes the preference and falls back to the build default.
+2. **Build default** (first match wins):
+   - Gradle property: `./gradlew :app:assembleDebug -Pserver_url=http://127.0.0.1:8080`
+   - `server_url` in `local.properties` (not committed; copy `local.properties.example`)
+   - `http://10.0.2.2:8080`
 
-Trimmed and validated as `^https?://\S+$`; a bad value fails configuration with a clear message.
+Both paths accept only an `http(s)` **origin** — no path, query, fragment, or credentials. The
+build-time regex and the runtime validator enforce this. Icons resolve against the current URL,
+and downloads resolve the version's `downloadPath` against it when the install starts.
 
 - Emulator → `10.0.2.2` reaches the host.
 - USB device → `adb reverse tcp:8080 tcp:8080` and use `http://127.0.0.1:8080`.
@@ -44,17 +77,19 @@ Trimmed and validated as `^https?://\S+$`; a bad value fails configuration with 
 
 1. `canRequestPackageInstalls()` is checked first; if denied, the app opens
    `Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES` for its own package.
-2. The APK is streamed into `cacheDir/apks/` with 64 KiB chunks; progress is emitted by whole
-   percent or every 100 ms.
+2. The version's relative `downloadPath` is resolved against the current server URL and streamed
+   into `cacheDir/apks/` with 64 KiB chunks; progress is emitted by whole percent or every 100 ms.
 3. The declared SHA-256 (if any) is verified; mismatches delete the file.
 4. The file is exposed through `FileProvider` (authority `${applicationId}.fileprovider`, path
    `apks/`) and opened with `ACTION_VIEW` + `application/vnd.android.package-archive`.
 
 The final status means the installer UI opened, not that the user completed installation.
+Failures are typed (`InstallFailure`) and localized by the UI layer.
 
 Cleartext HTTP is enabled for this internal build.
 
 ## CI
 
-`.github/workflows/android-ci.yml` runs the unit tests, assembles the debug APK on JDK 17, and
-uploads it as the `my-android-testflight-debug` artifact. There is no signing/release step.
+`.github/workflows/android-ci.yml` runs `:core:domain:test` plus every module's debug unit tests,
+assembles the debug APK on JDK 17, and uploads it as the `my-android-testflight-debug` artifact.
+There is no signing/release step.

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_title">Cài đặt</string>
+    <string name="settings_server_section">Máy chủ</string>
+    <string name="settings_server_url_label">Địa chỉ máy chủ</string>
+    <string name="settings_server_url_hint">http://10.0.2.2:8080</string>
+    <string name="settings_server_url_helper">Dùng địa chỉ gốc http(s), không có đường dẫn, ví dụ http://10.0.2.2:8080.</string>
+    <string name="settings_default_url_format">Mặc định: %1$s</string>
+    <string name="settings_save">Lưu</string>
+    <string name="settings_reset">Khôi phục mặc định</string>
+    <string name="settings_saved">Đã lưu địa chỉ máy chủ</string>
+    <string name="settings_reset_done">Đã khôi phục địa chỉ máy chủ mặc định</string>
+    <string name="settings_url_error_empty">Hãy nhập địa chỉ máy chủ.</string>
+    <string name="settings_url_error_malformed">Hãy nhập URL http(s) hợp lệ.</string>
+    <string name="settings_url_error_scheme">Chỉ hỗ trợ http và https.</string>
+    <string name="settings_url_error_host">URL cần có tên máy chủ.</string>
+    <string name="settings_url_error_path">Chỉ dùng địa chỉ gốc của máy chủ, không có đường dẫn, query hoặc fragment.</string>
+    <string name="settings_url_error_port">Cổng phải nằm trong khoảng 1 đến 65535.</string>
+    <string name="settings_description">Địa chỉ máy chủ quyết định danh sách ứng dụng và nơi tải APK.</string>
+    <string name="settings_connection_section">Kết nối</string>
+    <string name="settings_connection_in_use">Đang dùng</string>
+    <string name="settings_connection_status">Trạng thái</string>
+    <string name="settings_connection_ready">Sẵn sàng</string>
+</resources>

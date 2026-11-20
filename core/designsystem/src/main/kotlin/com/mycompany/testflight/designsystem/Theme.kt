@@ -1,39 +1,59 @@
 package com.mycompany.testflight.designsystem
 
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import com.mycompany.testflight.designsystem.tokens.FriendlyShapes
+import com.mycompany.testflight.designsystem.tokens.FriendlyTypography
+import com.mycompany.testflight.designsystem.tokens.TestflightColors
 
-private val LightColors = lightColorScheme(primary = Color(0xFF0B57D0))
-private val DarkColors = darkColorScheme(primary = Color(0xFFA8C7FA))
+private val FriendlyLightColors = lightColorScheme(
+    primary = TestflightColors.CoralStrong,
+    onPrimary = TestflightColors.White,
+    primaryContainer = TestflightColors.Coral,
+    onPrimaryContainer = TestflightColors.Navy,
+    secondary = TestflightColors.Navy,
+    onSecondary = TestflightColors.White,
+    secondaryContainer = TestflightColors.Cream,
+    onSecondaryContainer = TestflightColors.CoralStrong,
+    tertiary = TestflightColors.ReadyGreen,
+    onTertiary = TestflightColors.White,
+    background = TestflightColors.Cream,
+    onBackground = TestflightColors.Navy,
+    surface = TestflightColors.White,
+    onSurface = TestflightColors.Navy,
+    surfaceVariant = TestflightColors.Cream,
+    onSurfaceVariant = TestflightColors.Muted,
+    surfaceTint = TestflightColors.CoralStrong,
+    surfaceBright = TestflightColors.White,
+    surfaceDim = TestflightColors.Cream,
+    surfaceContainer = TestflightColors.White,
+    surfaceContainerLow = TestflightColors.White,
+    surfaceContainerLowest = TestflightColors.White,
+    surfaceContainerHigh = TestflightColors.White,
+    surfaceContainerHighest = TestflightColors.White,
+    inverseSurface = TestflightColors.Navy,
+    inverseOnSurface = TestflightColors.White,
+    inversePrimary = TestflightColors.Coral,
+    error = TestflightColors.CoralStrong,
+    onError = TestflightColors.White,
+    errorContainer = TestflightColors.ErrorFill,
+    onErrorContainer = TestflightColors.CoralStrong,
+    outline = TestflightColors.Line,
+    outlineVariant = TestflightColors.Line,
+    scrim = TestflightColors.Navy,
+)
 
+/**
+ * Fixed light theme matching the approved Friendly design. No dynamic color and no
+ * dark variant: the product is a light-only internal tool.
+ */
 @Composable
-fun MyTestflightTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
-    content: @Composable () -> Unit,
-) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColors
-        else -> LightColors
-    }
-
+fun MyTestflightTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography(),
+        colorScheme = FriendlyLightColors,
+        typography = FriendlyTypography,
+        shapes = FriendlyShapes,
         content = content,
     )
 }

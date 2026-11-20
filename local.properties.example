@@ -1,4 +1,7 @@
-# Base URL of the TestFlight server.
+# Base URL of the TestFlight server. Use an http(s) origin only: no path, query,
+# fragment, or credentials (for example, http://10.0.2.2:8080 is valid;
+# http://10.0.2.2:8080/api is not). The in-app Settings tab can override this at
+# runtime without rebuilding.
 # Emulators reach the host machine through 10.0.2.2; physical devices need the
 # host's LAN address (or `adb reverse tcp:8080 tcp:8080` plus http://127.0.0.1:8080).
 #

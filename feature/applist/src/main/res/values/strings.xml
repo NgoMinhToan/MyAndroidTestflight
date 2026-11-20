@@ -18,4 +18,78 @@
     <string name="refresh_content_description">Refresh apps</string>
     <string name="install_content_description">Install %1$s</string>
     <string name="app_icon_content_description">Icon of %1$s</string>
+
+    <string name="list_version_summary">v%1$s · %2$s</string>
+
+    <string name="search_hint">Search apps</string>
+    <string name="search_clear_content_description">Clear search</string>
+    <string name="search_no_results_title">No matching apps</string>
+    <string name="search_no_results_body">No apps match “%1$s”.</string>
+
+    <string name="error_network">Can\'t reach the server.</string>
+    <string name="error_server_http_format">The server returned HTTP %1$d.</string>
+    <string name="error_invalid_server_url">The server address isn\'t valid. Open Settings and check it.</string>
+    <string name="error_app_not_found">This app isn\'t available on the server.</string>
+    <string name="error_unexpected">Something went wrong.</string>
+
+    <string name="install_error_http_format">Download failed with HTTP %1$d.</string>
+    <string name="install_error_empty_body">The server returned an empty APK.</string>
+    <string name="install_error_checksum">The APK checksum doesn\'t match.</string>
+    <string name="install_error_no_installer">No APK installer is available.</string>
+    <string name="install_error_invalid_server_url">The server address isn\'t valid.</string>
+    <string name="install_error_io">The download failed. Check your connection.</string>
+    <string name="install_error_unexpected">Install failed.</string>
+
+    <string name="detail_title">App details</string>
+    <string name="detail_back_content_description">Back</string>
+    <string name="detail_about_title">About</string>
+    <string name="detail_developer_format">By %1$s</string>
+    <string name="detail_no_description">No description provided.</string>
+    <string name="detail_versions_title">Versions (%1$d)</string>
+    <string name="detail_latest_badge">Latest</string>
+    <string name="detail_version_name_format">Version %1$s</string>
+    <string name="detail_version_code_format">Version code %1$d</string>
+    <string name="detail_min_sdk_format">Min SDK %1$d</string>
+    <string name="detail_size_format">Size: %1$s</string>
+    <string name="detail_published_format">Published %1$s</string>
+    <string name="detail_release_notes_title">Release notes</string>
+    <string name="detail_no_release_notes">No release notes.</string>
+    <string name="detail_install_version_content_description">Install %1$s version %2$s</string>
+    <string name="detail_no_versions">No builds yet.</string>
+
+    <string name="list_kicker">Internal builds</string>
+    <plurals name="list_ready_count">
+        <item quantity="one">%1$d app ready to install</item>
+        <item quantity="other">%1$d apps ready to install</item>
+    </plurals>
+    <string name="list_all_apps">All apps</string>
+    <string name="list_results_for">Results for “%1$s”</string>
+    <plurals name="list_item_count">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
+    <string name="list_loading_kicker">Loading</string>
+    <string name="list_loading_title">Asking the server…</string>
+    <string name="list_loading_body">The list will show up as soon as the server responds.</string>
+    <string name="list_error_kicker">Connection error</string>
+    <string name="list_open_settings">Open Settings</string>
+    <string name="list_no_results_kicker">No results</string>
+    <string name="list_empty_kicker">Empty</string>
+    <string name="list_clear">CLEAR</string>
+    <string name="list_no_build_pill" translatable="false">—</string>
+
+    <string name="detail_dev_internal">%1$s · internal</string>
+    <string name="detail_dev_internal_fallback">Internal build</string>
+    <string name="detail_latest_tag">v%1$s · latest</string>
+    <string name="detail_version_short">v%1$s</string>
+    <string name="detail_versions_section">Versions</string>
+    <plurals name="detail_versions_count">
+        <item quantity="one">%1$d build</item>
+        <item quantity="other">%1$d builds</item>
+    </plurals>
+    <string name="detail_version_meta">code %1$d · minSdk %2$d · %3$s</string>
+    <string name="detail_version_meta_no_sdk">code %1$d · %2$s</string>
+    <string name="detail_install_this_version">Install this version</string>
+    <string name="detail_loading_title">Loading app…</string>
+    <string name="detail_error_title">Can\'t load this app</string>
 </resources>

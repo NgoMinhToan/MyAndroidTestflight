@@ -1,24 +1,28 @@
 package com.mycompany.testflight.feature.applist
 
+import com.mycompany.testflight.designsystem.text.UiText
 import com.mycompany.testflight.domain.error.AppError
 import com.mycompany.testflight.domain.installer.ApkInstaller
 import com.mycompany.testflight.domain.installer.InstallStatus
+import com.mycompany.testflight.domain.model.AppDetails
 import com.mycompany.testflight.domain.model.AppVersion
 import com.mycompany.testflight.domain.model.TestApp
 import com.mycompany.testflight.domain.repository.AppRepository
+import com.mycompany.testflight.domain.settings.ServerSettingsRepository
+import com.mycompany.testflight.domain.settings.ServerUrlValidation
 import com.mycompany.testflight.domain.usecase.GetAppsUseCase
 import com.mycompany.testflight.domain.usecase.InstallAppUseCase
+import com.mycompany.testflight.feature.applist.install.InstallCoordinator
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -37,7 +41,7 @@ class AppListViewModelTest {
         publishedAt = "2026-11-19T08:00:00.000Z",
         sizeBytes = 1_024L,
         sha256 = null,
-        downloadUrl = "http://localhost/api/v1/apps/demo/versions/1.0.0/download",
+        downloadPath = "/api/v1/apps/demo/versions/1.0.0/download",
     )
 
     private val app = TestApp(
@@ -50,79 +54,117 @@ class AppListViewModelTest {
 
     @Test
     fun `successful refresh exposes apps and clears loading`() = runTest {
-        val viewModel = createViewModel(
-            repository = FakeAppRepository(Result.success(listOf(app))),
-            installer = FakeInstaller(emptyFlow()),
-        )
+        val repository = FakeAppRepository(Result.success(listOf(app)))
+
+        val viewModel = createViewModel(repository)
+        runCurrent()
 
         assertEquals(listOf(app), viewModel.uiState.value.apps)
         assertFalse(viewModel.uiState.value.isLoading)
-        assertNull(viewModel.uiState.value.errorMessage)
+        assertEquals(null, viewModel.uiState.value.error)
     }
 
     @Test
-    fun `failed refresh exposes the error message`() = runTest {
-        val viewModel = createViewModel(
-            repository = FakeAppRepository(Result.failure(AppError.Network("Server unreachable"))),
-            installer = FakeInstaller(emptyFlow()),
-        )
+    fun `failed refresh exposes a localized error`() = runTest {
+        val repository = FakeAppRepository(Result.failure(AppError.Network()))
 
-        assertEquals("Server unreachable", viewModel.uiState.value.errorMessage)
+        val viewModel = createViewModel(repository)
+        runCurrent()
+
+        assertEquals(UiText.Res(R.string.error_network), viewModel.uiState.value.error)
         assertFalse(viewModel.uiState.value.isLoading)
         assertTrue(viewModel.uiState.value.apps.isEmpty())
     }
 
     @Test
-    fun `permission required emits the settings event and resets install state`() = runTest {
-        val viewModel = createViewModel(
-            repository = FakeAppRepository(Result.success(listOf(app))),
-            installer = FakeInstaller(flowOf(InstallStatus.PermissionRequired)),
-        )
+    fun `query updates the ui state`() = runTest {
+        val viewModel = createViewModel(FakeAppRepository(Result.success(listOf(app))))
 
-        viewModel.install(app)
-        val event = viewModel.events.first()
+        viewModel.onQueryChange("demo")
 
-        assertTrue(event is AppListEvent.OpenInstallPermissionSettings)
-        assertNull(viewModel.uiState.value.installingAppId)
-        assertNull(viewModel.uiState.value.installStage)
-        assertNull(viewModel.uiState.value.downloadProgress)
+        assertEquals("demo", viewModel.uiState.value.query)
     }
 
     @Test
-    fun `download progress maps into the ui state`() = runTest {
-        val statuses = Channel<InstallStatus>()
+    fun `changing the server url reloads the catalog`() = runTest {
+        val repository = FakeAppRepository(Result.success(listOf(app)))
+        val settings = FakeServerSettings("http://127.0.0.1:8080")
+        val viewModel = createViewModel(repository, settings)
+        runCurrent()
+        assertEquals(1, repository.calls)
+
+        settings.serverUrl.value = "https://example.com:9443"
+        runCurrent()
+
+        assertEquals(2, repository.calls)
+        assertEquals(listOf(app), viewModel.uiState.value.apps)
+    }
+
+    @Test
+    fun `install delegates to the coordinator`() = runTest {
+        val installer = FakeInstaller(Channel<InstallStatus>(Channel.UNLIMITED).receiveAsFlow())
         val viewModel = createViewModel(
             repository = FakeAppRepository(Result.success(listOf(app))),
-            installer = FakeInstaller(statuses.receiveAsFlow()),
+            installer = installer,
         )
 
         viewModel.install(app)
-        statuses.send(InstallStatus.Downloading(downloadedBytes = 50, totalBytes = 100))
+        runCurrent()
 
-        assertEquals("demo", viewModel.uiState.value.installingAppId)
-        assertEquals(InstallStage.Downloading, viewModel.uiState.value.installStage)
-        assertEquals(0.5f, viewModel.uiState.value.downloadProgress)
-
-        statuses.close()
+        assertEquals(1, installer.calls)
+        assertEquals("demo", viewModel.installState.value.appId)
+        assertEquals("1.0.0", viewModel.installState.value.versionName)
     }
 
-    private fun createViewModel(
+    private fun TestScope.createViewModel(
         repository: AppRepository,
-        installer: ApkInstaller,
-    ): AppListViewModel = AppListViewModel(
-        getApps = GetAppsUseCase(repository),
-        installApp = InstallAppUseCase(installer),
-    )
+        settings: ServerSettingsRepository = FakeServerSettings(),
+        installer: ApkInstaller = FakeInstaller(
+            Channel<InstallStatus>(Channel.UNLIMITED).receiveAsFlow(),
+        ),
+    ): AppListViewModel {
+        val coordinator = InstallCoordinator(InstallAppUseCase(installer), backgroundScope)
+        return AppListViewModel(
+            getApps = GetAppsUseCase(repository),
+            installCoordinator = coordinator,
+            serverSettings = settings,
+        )
+    }
 
     private class FakeAppRepository(
-        private val result: Result<List<TestApp>>,
+        private val apps: Result<List<TestApp>>,
     ) : AppRepository {
-        override suspend fun getApps(): Result<List<TestApp>> = result
+        var calls = 0
+
+        override suspend fun getApps(): Result<List<TestApp>> {
+            calls++
+            return apps
+        }
+
+        override suspend fun getApp(id: String): Result<AppDetails> =
+            Result.failure(AppError.Unexpected())
     }
 
     private class FakeInstaller(
         private val statuses: Flow<InstallStatus>,
     ) : ApkInstaller {
-        override fun install(app: TestApp, version: AppVersion): Flow<InstallStatus> = statuses
+        var calls = 0
+
+        override fun install(app: TestApp, version: AppVersion): Flow<InstallStatus> {
+            calls++
+            return statuses
+        }
+    }
+
+    private class FakeServerSettings(
+        initial: String = "http://127.0.0.1:8080",
+    ) : ServerSettingsRepository {
+        override val serverUrl = MutableStateFlow(initial)
+        override val defaultServerUrl: String = initial
+
+        override suspend fun updateServerUrl(raw: String): ServerUrlValidation =
+            ServerUrlValidation.Valid(raw)
+
+        override suspend fun resetToDefault() = Unit
     }
 }

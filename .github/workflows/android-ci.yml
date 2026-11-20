@@ -25,12 +25,12 @@ jobs:
       - name: Install SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager "platforms;android-37.2" "build-tools;36.0.0"
 
       - name: Test and build
         run: |
           chmod +x ./gradlew
-          ./gradlew :feature:applist:testDebugUnitTest :app:assembleDebug --no-daemon
+          ./gradlew :core:domain:test testDebugUnitTest :app:assembleDebug --no-daemon
 
       - uses: actions/upload-artifact@v4
         with:

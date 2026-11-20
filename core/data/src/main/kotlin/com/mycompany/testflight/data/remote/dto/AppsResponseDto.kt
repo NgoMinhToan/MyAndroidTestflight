@@ -8,12 +8,21 @@ data class AppsResponseDto(
 )
 
 @Serializable
+data class AppResponseDto(
+    val app: AppDto,
+)
+
+@Serializable
 data class AppDto(
     val id: String,
     val name: String = "",
     val packageName: String = "",
+    val description: String = "",
+    val developer: String = "",
+    val versionCount: Int = 0,
     val iconPath: String? = null,
     val latestVersion: VersionDto? = null,
+    val versions: List<VersionDto> = emptyList(),
 )
 
 @Serializable

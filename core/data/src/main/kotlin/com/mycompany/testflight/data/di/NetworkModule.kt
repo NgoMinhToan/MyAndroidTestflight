@@ -1,6 +1,6 @@
 package com.mycompany.testflight.data.di
 
-import com.mycompany.testflight.data.BuildConfig
+import com.mycompany.testflight.data.remote.BaseUrlInterceptor
 import com.mycompany.testflight.data.remote.TestflightApi
 import dagger.Module
 import dagger.Provides
@@ -25,12 +25,10 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    @Named("baseUrl")
-    fun provideBaseUrl(): String = BuildConfig.SERVER_URL.trimEnd('/') + "/"
-
-    @Provides
-    @Singleton
-    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
+    fun provideOkHttpClient(
+        baseUrlInterceptor: BaseUrlInterceptor,
+    ): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor(baseUrlInterceptor)
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(120, TimeUnit.SECONDS)
         .callTimeout(10, TimeUnit.MINUTES)
@@ -50,9 +48,9 @@ object NetworkModule {
     fun provideRetrofit(
         client: OkHttpClient,
         json: Json,
-        @Named("baseUrl") baseUrl: String,
     ): Retrofit = Retrofit.Builder()
-        .baseUrl(baseUrl)
+        // The BaseUrlInterceptor rewrites scheme/host/port from the persisted setting.
+        .baseUrl("http://localhost/")
         .client(client)
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
         .build()
