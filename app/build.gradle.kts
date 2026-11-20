@@ -5,6 +5,34 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+// The release workflow stamps versions from a tag through -PappVersionName / -PappVersionCode;
+// local builds keep the defaults below.
+val appVersionName = providers.gradleProperty("appVersionName").orNull
+    ?.trim()?.takeIf { it.isNotEmpty() } ?: "0.1.0"
+val appVersionCode = providers.gradleProperty("appVersionCode").orNull
+    ?.toIntOrNull() ?: 1
+
+// ABI splits stay off for local builds. The release workflow enables them and also asks for a
+// universal APK, so testers can take a small per-architecture download or one that always works.
+val abiFilters = providers.gradleProperty("appAbiFilters").orNull
+    ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
+    .orEmpty()
+val abiSplitsEnabled = providers.gradleProperty("appAbiSplits").orNull?.toBooleanStrictOrNull()
+    ?: abiFilters.isNotEmpty()
+val universalApkEnabled = providers.gradleProperty("appUniversalApk").orNull
+    ?.toBooleanStrictOrNull() ?: true
+
+// Release signing material comes from Gradle properties or environment variables (CI secrets).
+// Without it a release build is signed with the debug key, so artifacts stay installable.
+fun signingValue(property: String, environment: String): String? =
+    providers.gradleProperty(property).orNull?.takeIf { it.isNotBlank() }
+        ?: providers.environmentVariable(environment).orNull?.takeIf { it.isNotBlank() }
+
+val releaseStoreFile = signingValue("releaseStoreFile", "RELEASE_STORE_FILE")
+val releaseStorePassword = signingValue("releaseStorePassword", "RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = signingValue("releaseKeyAlias", "RELEASE_KEY_ALIAS")
+val releaseKeyPassword = signingValue("releaseKeyPassword", "RELEASE_KEY_PASSWORD")
+
 android {
     namespace = "com.mycompany.testflight"
     compileSdk = 37
@@ -14,13 +42,37 @@ android {
         applicationId = "com.mycompany.testflight"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
+    }
+
+    signingConfigs {
+        if (releaseStoreFile != null) {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
+    splits {
+        abi {
+            isEnable = abiSplitsEnabled
+            reset()
+            include(
+                *(if (abiFilters.isEmpty()) listOf("arm64-v8a", "armeabi-v7a", "x86_64") else abiFilters)
+                    .toTypedArray(),
+            )
+            isUniversalApk = universalApkEnabled
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 

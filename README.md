@@ -92,4 +92,41 @@ Cleartext HTTP is enabled for this internal build.
 
 `.github/workflows/android-ci.yml` runs `:core:domain:test` plus every module's debug unit tests,
 assembles the debug APK on JDK 17, and uploads it as the `my-android-testflight-debug` artifact.
-There is no signing/release step.
+
+## Releases
+
+`.github/workflows/android-release.yml` builds a marked version and publishes it:
+
+| Trigger | Version | Result |
+|---|---|---|
+| push a tag `v1.2.3` | `1.2.3` from the tag | release `v1.2.3` |
+| "Run workflow" with `version` | that version | tag + release for it |
+| "Run workflow" without `version` | `versionName` in `app/build.gradle.kts` | tag + release for it |
+
+Each run produces, as GitHub release assets and workflow artifacts:
+
+```
+MyTestflight-<version>-arm64-v8a.apk      per-ABI APK (arm64-v8a, armeabi-v7a, x86_64)
+MyTestflight-<version>-universal.apk      one APK for every ABI
+MyTestflight-<version>.aab                Android App Bundle
+SHA-256SUMS.txt                           checksums for all of the above
+```
+
+`versionCode` is the commit count, so it always grows and devices upgrade in place. Versions with
+a pre-release suffix (`v1.2.3-beta.1`) publish as pre-releases; re-running a version replaces the
+existing release assets.
+
+Splits are driven by Gradle properties, so the same artifacts can be built locally:
+
+```bash
+./gradlew :app:assembleRelease :app:bundleRelease \
+  -PappVersionName=1.2.3 -PappVersionCode=42 \
+  -PappAbiSplits=true -PappAbiFilters="arm64-v8a,armeabi-v7a,x86_64" -PappUniversalApk=true
+```
+
+Release signing reads `RELEASE_STORE_FILE`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS`, and
+`RELEASE_KEY_PASSWORD` from the environment or same-named Gradle properties. The workflow fills
+them from the `ANDROID_KEYSTORE_BASE64`, `ANDROID_STORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and
+`ANDROID_KEY_PASSWORD` repository secrets. Without them, release artifacts are signed with the
+debug key: installable for testing, but not suitable for distribution. Keep the keystore secret and
+never commit it.
