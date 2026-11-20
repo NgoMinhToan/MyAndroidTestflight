@@ -135,7 +135,7 @@ jobs:
             cp "$apk" "dist/MyTestflight-${version}-${abi}.apk"
           done
           cp app/build/outputs/bundle/release/app-release.aab "dist/MyTestflight-${version}.aab"
-          ( cd dist && sha256sum ./*.apk ./*.aab > SHA-256SUMS.txt )
+          ( cd dist && sha256sum ./*.apk ./*.aab | sed 's|\./||' > SHA-256SUMS.txt )
           ls -l dist
           cat dist/SHA-256SUMS.txt
 
