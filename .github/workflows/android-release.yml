@@ -4,10 +4,13 @@ name: android-release
 # App Bundle. Every run is marked with a version: the tag is created (when missing) and a GitHub
 # release carries the files plus checksums.
 #
-# Trigger it by pushing a tag (v1.2.3) or manually from the Actions tab. A version with a
-# pre-release suffix (v1.2.3-beta.1) is published as a pre-release.
+# Pushing to main publishes automatically with the version from gradle.properties; pushing a tag
+# (v1.2.3) or running the workflow by hand still works. A version with a pre-release suffix
+# (v1.2.3-beta.1) is published as a pre-release.
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
   workflow_dispatch:
@@ -66,8 +69,12 @@ jobs:
         run: |
           set -euo pipefail
           default_version="$(sed -n 's/^appVersionName=//p' gradle.properties | tr -d '[:space:]' | head -n1)"
-          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             version="${GITHUB_REF_NAME#v}"
+          elif [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            # A main push republishes the current appVersionName: the tag and release are reused
+            # and their assets replaced, so the download links stay stable.
+            version="$default_version"
           else
             version="${INPUT_VERSION:-$default_version}"
           fi
@@ -109,14 +116,32 @@ jobs:
             echo "No ANDROID_KEYSTORE_BASE64 secret; release artifacts will be debug-signed."
           fi
 
-      - name: Build APKs and AAB
+      # Publishing is automatic on main, so unit tests gate the release: a failing test stops the
+      # job before anything is uploaded.
+      #
+      # The AAB is built first with ABI splits off. AGP 9 cannot shrink resources for an app bundle
+      # while split APKs are produced in the same build ("Multiple shrunk-resources files found"),
+      # so the bundle and the split APKs are separate Gradle invocations.
+      - name: Test and build AAB
         env:
           RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
-          ./gradlew :app:assembleRelease :app:bundleRelease --no-daemon --stacktrace \
+          ./gradlew :core:domain:test testDebugUnitTest :app:bundleRelease \
+            --no-daemon --stacktrace \
+            -PappVersionName="${{ steps.version.outputs.version }}" \
+            -PappVersionCode="${{ steps.version.outputs.version_code }}" \
+            -PappAbiSplits=false
+
+      - name: Build split APKs
+        env:
+          RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace \
             -PappVersionName="${{ steps.version.outputs.version }}" \
             -PappVersionCode="${{ steps.version.outputs.version_code }}" \
             -PappAbiSplits=true \
@@ -150,6 +175,14 @@ jobs:
         with:
           name: android-release-${{ steps.version.outputs.version }}
           path: dist/*
+          if-no-files-found: error
+
+      # Release builds are R8-minified, so a crash trace needs this file to map back to source.
+      # It stays a workflow artifact rather than a release asset so it is not published publicly.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release-mapping-${{ steps.version.outputs.version }}
+          path: app/build/outputs/mapping/release/
           if-no-files-found: error
 
       - name: Tag the version

@@ -99,9 +99,15 @@ assembles the debug APK on JDK 17, and uploads it as the `my-android-testflight-
 
 | Trigger | Version | Result |
 |---|---|---|
+| push to `main` | `appVersionName` from `gradle.properties` | tag (created if missing) + release, assets replaced |
 | push a tag `v1.2.3` | `1.2.3` from the tag | release `v1.2.3` |
 | "Run workflow" with `version` | that version | tag + release for it |
 | "Run workflow" without `version` | `appVersionName` from `gradle.properties` | tag + release for it |
+
+Unit tests run before the release build, so a failing test blocks the upload. Pushing to `main`
+reuses the existing `v<appVersionName>` tag and replaces its release assets: the tag itself is not
+moved, and the download URLs stay stable for testers. Push a tag or bump `appVersionName` to cut
+a new one.
 
 Each run produces, as GitHub release assets and workflow artifacts:
 
@@ -118,10 +124,21 @@ grows and devices upgrade in place. Versions with
 a pre-release suffix (`v1.2.3-beta.1`) publish as pre-releases; re-running a version replaces the
 existing release assets.
 
-Splits are driven by Gradle properties, so the same artifacts can be built locally:
+Release builds enable R8 (`isMinifyEnabled` + `isShrinkResources`, rules in
+`app/proguard-rules.pro`), which takes a universal APK from ~15.4 MB to ~2.3 MB. The AAB keeps its
+own per-device splits. Each workflow run also uploads the R8 `mapping.txt` as the
+`android-release-mapping-<version>` artifact (not a release asset), so obfuscated crash traces can
+be retraced to source.
+
+Splits are driven by Gradle properties, so the same artifacts can be built locally. AGP 9 cannot
+shrink resources for an app bundle while split APKs are built in the same invocation, so run the
+two builds separately (bundle first, splits off):
 
 ```bash
-./gradlew :app:assembleRelease :app:bundleRelease \
+./gradlew :app:bundleRelease \
+  -PappVersionName=1.2.3 -PappVersionCode=42 -PappAbiSplits=false
+
+./gradlew :app:assembleRelease \
   -PappVersionName=1.2.3 -PappVersionCode=42 \
   -PappAbiSplits=true -PappAbiFilters="arm64-v8a,armeabi-v7a,x86_64" -PappUniversalApk=true
 ```
