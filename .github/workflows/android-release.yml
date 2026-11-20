@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version, MAJOR.MINOR.PATCH (defaults to versionName in app/build.gradle.kts)"
+        description: "Release version, MAJOR.MINOR.PATCH (defaults to appVersionName in gradle.properties)"
         required: false
         type: string
       draft:
@@ -65,13 +65,17 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          default_version="$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts | head -n1)"
+          default_version="$(sed -n 's/^appVersionName=//p' gradle.properties | tr -d '[:space:]' | head -n1)"
           if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
             version="${GITHUB_REF_NAME#v}"
           else
             version="${INPUT_VERSION:-$default_version}"
           fi
           version="${version#v}"
+          if [ -z "$version" ]; then
+            echo "::error::No version given. Pass a version to the workflow or set appVersionName in gradle.properties."
+            exit 1
+          fi
           if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]+)?$'; then
             echo "::error::Version '$version' is not MAJOR.MINOR.PATCH"
             exit 1

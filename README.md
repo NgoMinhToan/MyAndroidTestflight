@@ -101,7 +101,7 @@ assembles the debug APK on JDK 17, and uploads it as the `my-android-testflight-
 |---|---|---|
 | push a tag `v1.2.3` | `1.2.3` from the tag | release `v1.2.3` |
 | "Run workflow" with `version` | that version | tag + release for it |
-| "Run workflow" without `version` | `versionName` in `app/build.gradle.kts` | tag + release for it |
+| "Run workflow" without `version` | `appVersionName` from `gradle.properties` | tag + release for it |
 
 Each run produces, as GitHub release assets and workflow artifacts:
 
@@ -112,7 +112,9 @@ MyTestflight-<version>.aab                Android App Bundle
 SHA-256SUMS.txt                           checksums for all of the above
 ```
 
-`versionCode` is the commit count, so it always grows and devices upgrade in place. Versions with
+Bump `appVersionName` in `gradle.properties` to cut the next version (`appVersionCode` there is
+only the local-build default). In the workflow `versionCode` is the commit count, so it always
+grows and devices upgrade in place. Versions with
 a pre-release suffix (`v1.2.3-beta.1`) publish as pre-releases; re-running a version replaces the
 existing release assets.
 

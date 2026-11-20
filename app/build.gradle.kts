@@ -5,8 +5,8 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
-// The release workflow stamps versions from a tag through -PappVersionName / -PappVersionCode;
-// local builds keep the defaults below.
+// The defaults live in gradle.properties (appVersionName / appVersionCode) so the release
+// workflow can read them; -P overrides stamp a version without editing any file.
 val appVersionName = providers.gradleProperty("appVersionName").orNull
     ?.trim()?.takeIf { it.isNotEmpty() } ?: "0.1.0"
 val appVersionCode = providers.gradleProperty("appVersionCode").orNull
