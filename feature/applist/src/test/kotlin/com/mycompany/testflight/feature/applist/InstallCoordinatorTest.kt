@@ -1,9 +1,11 @@
 package com.mycompany.testflight.feature.applist
 
 import com.mycompany.testflight.designsystem.text.UiText
+import com.mycompany.testflight.domain.apk.ResolvedBuild
 import com.mycompany.testflight.domain.installer.ApkInstaller
 import com.mycompany.testflight.domain.installer.InstallFailure
 import com.mycompany.testflight.domain.installer.InstallStatus
+import com.mycompany.testflight.domain.model.ApkArtifact
 import com.mycompany.testflight.domain.model.AppVersion
 import com.mycompany.testflight.domain.model.TestApp
 import com.mycompany.testflight.domain.usecase.InstallAppUseCase
@@ -39,6 +41,15 @@ class InstallCoordinatorTest {
         downloadPath = "/api/v1/apps/demo/versions/1.0.0/download",
     )
 
+    private val artifact = ApkArtifact(
+        abi = "universal",
+        sizeBytes = 1_024L,
+        sha256 = null,
+        downloadPath = "/api/v1/apps/demo/versions/1.0.0/download",
+    )
+
+    private val build = ResolvedBuild(version, artifact)
+
     private val app = TestApp(
         id = "demo",
         name = "Demo App",
@@ -52,7 +63,7 @@ class InstallCoordinatorTest {
         val statuses = Channel<InstallStatus>(Channel.UNLIMITED)
         val coordinator = createCoordinator(statuses)
 
-        coordinator.install(app, version)
+        coordinator.install(app, build)
         runCurrent()
         statuses.send(InstallStatus.Downloading(downloadedBytes = 50, totalBytes = 100))
         runCurrent()
@@ -69,7 +80,7 @@ class InstallCoordinatorTest {
         val coordinator = createCoordinator(statuses)
         val event = async(start = CoroutineStart.UNDISPATCHED) { coordinator.events.first() }
 
-        coordinator.install(app, version)
+        coordinator.install(app, build)
         runCurrent()
         statuses.send(InstallStatus.PermissionRequired)
         statuses.close()
@@ -86,7 +97,7 @@ class InstallCoordinatorTest {
         val coordinator = createCoordinator(statuses)
         val event = async(start = CoroutineStart.UNDISPATCHED) { coordinator.events.first() }
 
-        coordinator.install(app, version)
+        coordinator.install(app, build)
         runCurrent()
         statuses.send(InstallStatus.InstallerLaunched)
         statuses.close()
@@ -102,7 +113,7 @@ class InstallCoordinatorTest {
         val coordinator = createCoordinator(statuses)
         val event = async(start = CoroutineStart.UNDISPATCHED) { coordinator.events.first() }
 
-        coordinator.install(app, version)
+        coordinator.install(app, build)
         runCurrent()
         statuses.send(InstallStatus.Failed(InstallFailure.ChecksumMismatch))
         statuses.close()
@@ -119,9 +130,9 @@ class InstallCoordinatorTest {
         val installer = FakeInstaller(statuses.receiveAsFlow())
         val coordinator = InstallCoordinator(InstallAppUseCase(installer), backgroundScope)
 
-        coordinator.install(app, version)
+        coordinator.install(app, build)
         runCurrent()
-        coordinator.install(app, version)
+        coordinator.install(app, build)
         runCurrent()
 
         assertEquals(1, installer.calls)
@@ -140,7 +151,7 @@ class InstallCoordinatorTest {
     ) : ApkInstaller {
         var calls = 0
 
-        override fun install(app: TestApp, version: AppVersion): Flow<InstallStatus> {
+        override fun install(app: TestApp, build: ResolvedBuild): Flow<InstallStatus> {
             calls++
             return statuses
         }

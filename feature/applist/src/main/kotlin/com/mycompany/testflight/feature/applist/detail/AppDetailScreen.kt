@@ -1,8 +1,8 @@
 package com.mycompany.testflight.feature.applist.detail
 
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animate
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -52,12 +52,14 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Constraints
@@ -80,16 +82,26 @@ import com.mycompany.testflight.designsystem.tokens.FriendlyType
 import com.mycompany.testflight.designsystem.tokens.JakartaSans
 import com.mycompany.testflight.designsystem.tokens.PillShape
 import com.mycompany.testflight.designsystem.tokens.TestflightColors
+import com.mycompany.testflight.domain.apk.BuildAvailability
+import com.mycompany.testflight.domain.apk.ResolvedBuild
+import com.mycompany.testflight.domain.installer.InstallAction
+import com.mycompany.testflight.domain.model.ApkArtifact
+import com.mycompany.testflight.domain.model.AppDetailModel
 import com.mycompany.testflight.domain.model.AppDetails
 import com.mycompany.testflight.domain.model.AppVersion
+import com.mycompany.testflight.domain.model.InstalledApp
 import com.mycompany.testflight.domain.model.TestApp
+import com.mycompany.testflight.domain.model.VersionState
 import com.mycompany.testflight.feature.applist.R
 import com.mycompany.testflight.feature.applist.install.InstallStage
 import com.mycompany.testflight.feature.applist.install.InstallState
 import com.mycompany.testflight.feature.applist.ui.COLLAPSE_MAX_FLING_PROGRESS
+import com.mycompany.testflight.feature.applist.ui.installActionDescription
+import com.mycompany.testflight.feature.applist.ui.installActionLabel
 import com.mycompany.testflight.feature.applist.ui.rememberFormattedPublishedDate
 import com.mycompany.testflight.feature.applist.ui.rememberShortFileSize
 import com.mycompany.testflight.feature.applist.ui.settleCollapseTarget
+import coil3.compose.AsyncImage
 import java.time.format.FormatStyle
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -108,19 +120,17 @@ fun AppDetailScreen(
     snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
     onRetry: () -> Unit,
-    onInstall: (AppVersion) -> Unit,
+    onInstall: (ResolvedBuild) -> Unit,
+    onLaunchApp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val details = uiState.details
-    // Start from the accent already on screen (restored state) and only animate when a load
-    // reveals a different one, so returning to a tab does not replay the header color sweep.
-    val accent = details?.app?.id?.let(AppAccentPalette::colorFor)
+    val model = uiState.model
+    val details = model?.details
+    // The id arrives with navigation, so the accent is correct on the first frame instead of
+    // sweeping from the default coral once the app payload lands.
+    val accent = uiState.appId.takeIf { it.isNotBlank() }
+        ?.let(AppAccentPalette::colorFor)
         ?: TestflightColors.Coral
-    val headerColor by animateColorAsState(
-        targetValue = accent,
-        animationSpec = tween(320),
-        label = "detailHeader",
-    )
     // Saved so switching tabs and coming back restores the header without replaying motion.
     var headerProgress by rememberSaveable { mutableStateOf(0f) }
     var collapseRangePx by remember { mutableFloatStateOf(1f) }
@@ -187,17 +197,20 @@ fun AppDetailScreen(
         modifier = modifier
             .fillMaxSize()
             .nestedScroll(headerNestedScroll)
-            .drawBehind { drawRect(headerColor) },
+            .drawBehind { drawRect(accent) },
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             DetailHeader(
-                details = details,
-                headerColor = { headerColor },
+                model = model,
+                headerColor = accent,
                 progress = { headerProgress },
                 onCollapseRangeChanged = { range ->
                     if (range != collapseRangePx) collapseRangePx = range
                 },
                 onBack = onBack,
+                installState = installState,
+                onInstall = onInstall,
+                onLaunchApp = onLaunchApp,
             )
             SheetSurface(
                 modifier = Modifier.weight(1f),
@@ -208,8 +221,8 @@ fun AppDetailScreen(
                         .padding(top = 14.dp, bottom = 4.dp),
                 )
                 when {
-                    details != null -> DetailContent(
-                        details = details,
+                    model != null -> DetailContent(
+                        model = model,
                         installState = installState,
                         onInstall = onInstall,
                     )
@@ -270,17 +283,61 @@ private fun iconLetterScaleAt(progress: Float): Float =
 
 @Composable
 private fun DetailHeader(
-    details: AppDetails?,
-    headerColor: () -> Color,
+    model: AppDetailModel?,
+    headerColor: Color,
     /** Read in layout/draw so the drag never recomposes this header. */
     progress: () -> Float,
     onCollapseRangeChanged: (Float) -> Unit,
     onBack: () -> Unit,
+    installState: InstallState,
+    onInstall: (ResolvedBuild) -> Unit,
+    onLaunchApp: () -> Unit,
 ) {
-    val app = details?.app
-    val developerLabel = app?.developer?.takeIf { it.isNotBlank() }
-        ?.let { stringResource(R.string.detail_dev_internal, it) }
-        ?: stringResource(R.string.detail_dev_internal_fallback)
+    val app = model?.details?.app
+    val appName = app?.name ?: ""
+    val developerLabel = when {
+        app == null -> ""
+        app.developer.isNotBlank() ->
+            stringResource(R.string.detail_dev_internal, app.developer)
+
+        else -> stringResource(R.string.detail_dev_internal_fallback)
+    }
+    val latest = app?.latestVersion
+    val action = model?.action
+    val actionVersionName = model?.actionVersion?.versionName
+    val actionState = installState.takeIf {
+        model != null &&
+            it.appId == model.details.app.id &&
+            (actionVersionName == null || it.versionName == actionVersionName)
+    }
+    val primaryLabel = model?.let { current ->
+        installActionLabel(current.action, noBuild = current.actionVersion == null)
+    } ?: " "
+    val primaryDescription = model?.let { current ->
+        installActionDescription(current.action, current.details.app.name)
+    }
+    val showSecondaryOpen = model != null &&
+        model.installed != null &&
+        model.action != InstallAction.Open
+    val onPrimaryClick: () -> Unit = {
+        val current = model
+        if (current != null) {
+            when (current.action) {
+                InstallAction.Install, InstallAction.Update ->
+                    current.headerBuild?.let(onInstall)
+
+                InstallAction.Open -> onLaunchApp()
+                InstallAction.Unsupported -> Unit
+            }
+        }
+    }
+    // The header keeps its expanded footprint while the payload loads, so the screen does not
+    // jump from a short header to the full one. Content fades in over the placeholders.
+    val headerContentAlpha by animateFloatAsState(
+        targetValue = if (model == null) 0f else 1f,
+        animationSpec = tween(180),
+        label = "detailHeaderContent",
+    )
 
     Column(
         modifier = Modifier
@@ -289,30 +346,6 @@ private fun DetailHeader(
             .statusBarsPadding()
             .padding(start = 18.dp, end = 18.dp, top = 14.dp),
     ) {
-        if (app == null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BackButton(onBack)
-                Text(
-                    text = developerLabel.uppercase(Locale.getDefault()),
-                    style = FriendlyType.DetailOverline,
-                    color = TestflightColors.Navy.copy(alpha = 0.6f),
-                    textAlign = TextAlign.End,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            return@Column
-        }
-
-        val latest = app.latestVersion
-
         Layout(
             content = {
                 BackButton(onBack)
@@ -322,7 +355,9 @@ private fun DetailHeader(
                     color = TestflightColors.Navy.copy(alpha = 0.6f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.graphicsLayer { alpha = 1f - progress() },
+                    modifier = Modifier.graphicsLayer {
+                        alpha = headerContentAlpha * (1f - progress())
+                    },
                 )
                 Box(
                     modifier = Modifier
@@ -337,7 +372,7 @@ private fun DetailHeader(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = app.name.take(1).uppercase(),
+                        text = appName.take(1).uppercase(),
                         style = TextStyle(
                             fontFamily = JakartaSans,
                             fontWeight = FontWeight.ExtraBold,
@@ -348,11 +383,24 @@ private fun DetailHeader(
                             val scale = iconLetterScaleAt(progress())
                             scaleX = scale
                             scaleY = scale
+                            alpha = headerContentAlpha
                         },
                     )
+                    val iconUrl = app?.iconUrl
+                    if (iconUrl != null) {
+                        AsyncImage(
+                            model = iconUrl,
+                            contentDescription = stringResource(
+                                R.string.app_icon_content_description,
+                                appName,
+                            ),
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
                 }
                 Text(
-                    text = app.name,
+                    text = appName.ifEmpty { " " },
                     style = FriendlyType.DetailTitle,
                     color = TestflightColors.Navy,
                     maxLines = 1,
@@ -365,10 +413,11 @@ private fun DetailHeader(
                         scaleX = scale
                         scaleY = scale
                         transformOrigin = TransformOrigin(0f, 0f)
+                        alpha = headerContentAlpha
                     },
                 )
                 Text(
-                    text = app.packageName,
+                    text = app?.packageName?.ifEmpty { " " } ?: " ",
                     style = TextStyle(
                         fontFamily = JakartaSans,
                         fontWeight = FontWeight.SemiBold,
@@ -377,12 +426,16 @@ private fun DetailHeader(
                     color = TestflightColors.Navy.copy(alpha = 0.62f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.graphicsLayer { alpha = 1f - progress() },
+                    modifier = Modifier.graphicsLayer {
+                        alpha = headerContentAlpha * (1f - progress())
+                    },
                 )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.graphicsLayer { alpha = 1f - progress() },
+                    modifier = Modifier.graphicsLayer {
+                        alpha = headerContentAlpha * (1f - progress())
+                    },
                 ) {
                     if (latest != null) {
                         HeaderTag(
@@ -402,7 +455,39 @@ private fun DetailHeader(
                         )?.let { date ->
                             HeaderTag(text = date, solid = false)
                         }
+                    } else {
+                        // Reserve the chip row height while loading and for build-less apps.
+                        Box(Modifier.graphicsLayer { alpha = 0f }) {
+                            HeaderTag(text = " ", solid = true)
+                        }
                     }
+                }
+                HeaderActionChip(
+                    label = primaryLabel,
+                    state = actionState,
+                    solid = true,
+                    enabled = model != null && action != InstallAction.Unsupported,
+                    onClick = onPrimaryClick,
+                    contentDescription = primaryDescription,
+                    modifier = Modifier.graphicsLayer { alpha = headerContentAlpha },
+                )
+                if (showSecondaryOpen) {
+                    HeaderActionChip(
+                        label = stringResource(R.string.open),
+                        state = null,
+                        solid = false,
+                        enabled = true,
+                        onClick = onLaunchApp,
+                        contentDescription = stringResource(
+                            R.string.open_content_description,
+                            appName,
+                        ),
+                        modifier = Modifier.graphicsLayer {
+                            alpha = headerContentAlpha * (1f - progress())
+                        },
+                    )
+                } else {
+                    Spacer(Modifier)
                 }
             },
             modifier = Modifier
@@ -412,8 +497,28 @@ private fun DetailHeader(
             val collapse = progress()
             val loose = constraints.copy(minWidth = 0, minHeight = 0)
             val back = measurables[0].measure(loose)
-            val developerMaxWidth = (constraints.maxWidth - back.width - 8.dp.roundToPx())
-                .coerceAtLeast(0)
+            val iconSize = (76f + (28f - 76f) * collapse).dp
+            val icon = measurables[2].measure(
+                Constraints.fixed(iconSize.roundToPx(), iconSize.roundToPx()),
+            )
+            val primaryAction = measurables[6].measure(loose)
+            val secondaryAction = measurables[7].measure(loose)
+
+            val rowHeight = 44.dp.roundToPx()
+            val bottomPadding = 6.dp.roundToPx()
+            val gapAfterRow = 18.dp.roundToPx()
+            val gapIconName = 14.dp.roundToPx()
+            val gapNamePackage = 5.dp.roundToPx()
+            val gapPackageTags = 12.dp.roundToPx()
+            val gapTagsActions = 6.dp.roundToPx()
+            val gapActions = 8.dp.roundToPx()
+
+            // Collapsed, the primary action sits at the right edge of the top row, so reserve
+            // its width and the gap from the developer label and the scaled title.
+            val reservedActionWidth = ((primaryAction.width + gapActions) * collapse).roundToInt()
+            val developerMaxWidth = (
+                constraints.maxWidth - back.width - 8.dp.roundToPx() - reservedActionWidth
+                ).coerceAtLeast(0)
             val developer = measurables[1].measure(
                 constraints.copy(
                     minWidth = 0,
@@ -421,17 +526,6 @@ private fun DetailHeader(
                     minHeight = 0,
                 ),
             )
-            val iconSize = (76f + (28f - 76f) * collapse).dp
-            val icon = measurables[2].measure(
-                Constraints.fixed(iconSize.roundToPx(), iconSize.roundToPx()),
-            )
-
-            val rowHeight = 44.dp.roundToPx()
-            val bottomPadding = 12.dp.roundToPx()
-            val gapAfterRow = 18.dp.roundToPx()
-            val gapIconName = 14.dp.roundToPx()
-            val gapNamePackage = 5.dp.roundToPx()
-            val gapPackageTags = 12.dp.roundToPx()
 
             val expandedIconY = rowHeight + gapAfterRow
             val collapsedIconX = back.width + 10.dp.roundToPx()
@@ -440,9 +534,11 @@ private fun DetailHeader(
             val nameX = collapsedNameX * collapse
             // The title is measured once at its expanded size and drawn scaled down. Measure
             // it un-scaled wide enough that the scaled glyphs can still fill the collapsed
-            // slot and ellipsize at its right edge.
+            // slot and ellipsize before the action chip.
             val nameScale = nameScaleAt(collapse)
-            val nameMaxWidth = ((constraints.maxWidth - nameX) / nameScale)
+            val nameMaxWidth = (
+                (constraints.maxWidth - nameX - reservedActionWidth) / nameScale
+                )
                 .roundToInt()
                 .coerceAtLeast(1)
             val name = measurables[3].measure(loose.copy(maxWidth = nameMaxWidth))
@@ -452,7 +548,9 @@ private fun DetailHeader(
             val expandedNameY = expandedIconY + ExpandedIconSize.roundToPx() + gapIconName
             val expandedPackageY = expandedNameY + name.height + gapNamePackage
             val expandedTagsY = expandedPackageY + packageText.height + gapPackageTags
-            val expandedHeight = expandedTagsY + tags.height + bottomPadding
+            val expandedActionsY = expandedTagsY + tags.height + gapTagsActions
+            val actionRowHeight = maxOf(primaryAction.height, secondaryAction.height)
+            val expandedHeight = expandedActionsY + actionRowHeight + bottomPadding
             val collapsedHeight = rowHeight + bottomPadding
             val height = (
                 expandedHeight + (collapsedHeight - expandedHeight) * collapse
@@ -466,6 +564,17 @@ private fun DetailHeader(
             val collapsedNameY = (rowHeight - name.height * nameScale) / 2f
             val nameY = expandedNameY + (collapsedNameY - expandedNameY) * collapse
 
+            // The primary action travels from the expanded chip row to the right edge of the
+            // collapsed top row. The secondary Open chip stays behind and is clipped away.
+            val actionCollapsedX = (constraints.maxWidth - primaryAction.width).toFloat()
+            val actionX = actionCollapsedX * collapse
+            val actionCollapsedY = (rowHeight - primaryAction.height) / 2f
+            val actionY = expandedActionsY +
+                (actionCollapsedY - expandedActionsY) * collapse
+            val secondaryX = primaryAction.width + gapActions
+            val secondaryY = expandedActionsY +
+                (actionRowHeight - secondaryAction.height) / 2f
+
             layout(constraints.maxWidth, height) {
                 back.place(0, (rowHeight - back.height) / 2)
                 developer.place(
@@ -476,6 +585,8 @@ private fun DetailHeader(
                 name.place(nameX.roundToInt(), nameY.roundToInt())
                 packageText.place(0, expandedPackageY)
                 tags.place(0, expandedTagsY)
+                primaryAction.place(actionX.roundToInt(), actionY.roundToInt())
+                secondaryAction.place(secondaryX, secondaryY.roundToInt())
             }
         }
     }
@@ -526,14 +637,73 @@ private fun HeaderTag(text: String, solid: Boolean) {
     )
 }
 
+/**
+ * The header action uses the same pill language as the version/size/date chips: solid for the
+ * primary action and translucent for the secondary Open action.
+ */
+@Composable
+private fun HeaderActionChip(
+    label: String,
+    state: InstallState?,
+    solid: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null,
+) {
+    val text = when (state?.stage) {
+        InstallStage.Downloading -> state.progress?.let { progress ->
+            stringResource(R.string.installing_percent, (progress * 100).roundToInt())
+        } ?: stringResource(R.string.installing)
+
+        InstallStage.Verifying -> stringResource(R.string.verifying)
+        InstallStage.Launching -> stringResource(R.string.opening_installer)
+        else -> label
+    }
+    val container = when {
+        !enabled -> TestflightColors.Navy.copy(alpha = 0.35f)
+        solid -> TestflightColors.Navy
+        else -> TestflightColors.White.copy(alpha = 0.55f)
+    }
+    val content = when {
+        !enabled -> TestflightColors.White.copy(alpha = 0.7f)
+        solid -> TestflightColors.White
+        else -> TestflightColors.Navy.copy(alpha = 0.8f)
+    }
+    Text(
+        text = text,
+        style = FriendlyType.PillLabel,
+        color = content,
+        maxLines = 1,
+        modifier = modifier
+            .clip(PillShape)
+            .background(container)
+            .clickable(
+                enabled = enabled && state == null,
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .padding(horizontal = 14.dp, vertical = 9.dp)
+            .semantics {
+                if (contentDescription != null) {
+                    this.contentDescription = contentDescription
+                }
+            },
+    )
+}
+
 @Composable
 private fun DetailContent(
-    details: AppDetails,
+    model: AppDetailModel,
     installState: InstallState,
-    onInstall: (AppVersion) -> Unit,
+    onInstall: (ResolvedBuild) -> Unit,
 ) {
+    val details = model.details
     val latestName = details.app.latestVersion?.versionName
         ?: details.versions.firstOrNull()?.versionName
+    val versionsByName = remember(model.versions) {
+        model.versions.associateBy { state -> state.version.versionName }
+    }
     val scrollState = rememberScrollState()
     BoxWithConstraints(
         modifier = Modifier
@@ -584,6 +754,7 @@ private fun DetailContent(
                 VersionCard(
                     appName = details.app.name,
                     version = version,
+                    build = versionsByName[version.versionName]?.build,
                     isLatest = version.versionName == latestName,
                     rowInstall = installState.takeIf {
                         it.appId == details.app.id && it.versionName == version.versionName
@@ -620,14 +791,34 @@ private val previewApp = TestApp(
     versionCount = 1,
 )
 
+private val previewArtifact = ApkArtifact(
+    abi = "arm64-v8a",
+    sizeBytes = previewVersion.sizeBytes,
+    sha256 = null,
+    downloadPath = "${previewVersion.downloadPath}?abi=arm64-v8a",
+)
+
+private val previewModel = AppDetailModel(
+    details = AppDetails(app = previewApp, versions = listOf(previewVersion)),
+    installed = InstalledApp(packageName = "com.company.crm", versionCode = 141),
+    headerBuild = ResolvedBuild(previewVersion, previewArtifact),
+    actionVersion = previewVersion,
+    actionAvailability = BuildAvailability.Available(previewArtifact),
+    action = InstallAction.Update,
+    versions = listOf(
+        VersionState(previewVersion, BuildAvailability.Available(previewArtifact)),
+    ),
+)
+
 @Preview(showBackground = true, widthDp = 360, heightDp = 780)
 @Composable
 private fun AppDetailPreview() {
     MyTestflightTheme {
         AppDetailScreen(
             uiState = AppDetailUiState(
+                appId = "crm",
                 isLoading = false,
-                details = AppDetails(app = previewApp, versions = listOf(previewVersion)),
+                model = previewModel,
             ),
             installState = InstallState(
                 appId = "crm",
@@ -639,7 +830,8 @@ private fun AppDetailPreview() {
             snackbarHostState = remember { SnackbarHostState() },
             onBack = {},
             onRetry = {},
-            onInstall = {},
+            onInstall = { _ -> },
+            onLaunchApp = {},
         )
     }
 }

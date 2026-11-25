@@ -35,4 +35,13 @@ data class VersionDto(
     val sizeBytes: Long = 0L,
     val sha256: String? = null,
     val downloadPath: String = "",
+    val artifacts: List<ArtifactDto> = emptyList(),
+)
+
+@Serializable
+data class ArtifactDto(
+    val abi: String = "",
+    val sizeBytes: Long = 0L,
+    val sha256: String? = null,
+    val downloadPath: String = "",
 )

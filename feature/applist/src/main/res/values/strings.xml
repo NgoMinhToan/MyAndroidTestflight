@@ -3,6 +3,13 @@
     <string name="apps_title">TestFlight</string>
     <string name="refresh">Refresh</string>
     <string name="install">Install</string>
+    <string name="update">Update</string>
+    <string name="open">Open</string>
+    <string name="unsupported_build">Unsupported</string>
+    <string name="open_app_failed">Can\'t open this app.</string>
+    <string name="update_content_description">Update %1$s</string>
+    <string name="open_content_description">Open %1$s</string>
+    <string name="unsupported_content_description">%1$s isn\'t supported on this device</string>
     <string name="installing_percent">Installing %1$d%%</string>
     <string name="installing">Installing…</string>
     <string name="verifying">Verifying…</string>

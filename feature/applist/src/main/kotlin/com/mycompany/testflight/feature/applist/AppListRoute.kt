@@ -7,6 +7,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mycompany.testflight.designsystem.text.asString
 import com.mycompany.testflight.feature.applist.install.InstallEventEffect
@@ -31,6 +33,17 @@ fun AppListRoute(
         }
     }
 
+    LaunchedEffect(viewModel) {
+        viewModel.openErrors.collect { message ->
+            snackbarHostState.showSnackbar(message.asString(context))
+        }
+    }
+
+    // Returning from the system installer (or another app) can change the installed version.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshInstalled()
+    }
+
     AppListScreen(
         uiState = uiState,
         installState = installState,
@@ -38,6 +51,7 @@ fun AppListRoute(
         onRefresh = viewModel::refresh,
         onQueryChange = viewModel::onQueryChange,
         onInstall = viewModel::install,
+        onLaunchApp = viewModel::launchApp,
         onOpenApp = onOpenApp,
         onOpenSettings = onOpenSettings,
     )

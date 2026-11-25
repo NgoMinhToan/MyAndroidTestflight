@@ -78,6 +78,11 @@ import com.mycompany.testflight.designsystem.text.asString
 import com.mycompany.testflight.designsystem.tokens.AppAccentPalette
 import com.mycompany.testflight.designsystem.tokens.FriendlyType
 import com.mycompany.testflight.designsystem.tokens.TestflightColors
+import com.mycompany.testflight.domain.apk.BuildAvailability
+import com.mycompany.testflight.domain.apk.ResolvedBuild
+import com.mycompany.testflight.domain.installer.InstallAction
+import com.mycompany.testflight.domain.model.ApkArtifact
+import com.mycompany.testflight.domain.model.AppCatalogEntry
 import com.mycompany.testflight.domain.model.AppVersion
 import com.mycompany.testflight.domain.model.TestApp
 import com.mycompany.testflight.feature.applist.components.AppRow
@@ -100,41 +105,49 @@ fun AppListScreen(
     snackbarHostState: SnackbarHostState,
     onRefresh: () -> Unit,
     onQueryChange: (String) -> Unit,
-    onInstall: (TestApp) -> Unit,
+    onInstall: (TestApp, ResolvedBuild) -> Unit,
+    onLaunchApp: (String) -> Unit,
     onOpenApp: (String) -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val visibleApps = remember(uiState.apps, uiState.query) {
+    val visibleEntries = remember(uiState.apps, uiState.resolutions, uiState.query) {
         filterApps(uiState.apps, uiState.query)
+            .mapNotNull { app -> uiState.resolutions[app.id] }
     }
-    val rowModels = remember(visibleApps, context) {
-        visibleApps.map { app ->
-            val version = app.latestVersion
+    val rowModels = remember(visibleEntries, context) {
+        visibleEntries.map { entry ->
+            val version = entry.version
             AppRowModel(
-                app = app,
-                accent = AppAccentPalette.colorFor(app.id),
+                app = entry.app,
+                version = version,
+                build = entry.build,
+                action = entry.action,
+                accent = AppAccentPalette.colorFor(entry.app.id),
                 versionSummary = if (version == null) {
                     context.getString(R.string.no_builds)
                 } else {
                     context.getString(
                         R.string.list_version_summary,
                         version.versionName,
-                        formatShortFileSize(context, version.sizeBytes),
+                        formatShortFileSize(
+                            context,
+                            entry.build?.artifact?.sizeBytes ?: version.sizeBytes,
+                        ),
                     )
                 },
             )
         }
     }
-    val readyCount = remember(uiState.apps) {
-        uiState.apps.count { it.latestVersion != null }
+    val readyCount = remember(uiState.resolutions) {
+        uiState.resolutions.values.count { it.build != null }
     }
     val stateKey = when {
         uiState.isLoading && uiState.apps.isEmpty() -> ListStateKey.Loading
         uiState.error != null && uiState.apps.isEmpty() -> ListStateKey.Error
         uiState.apps.isEmpty() -> ListStateKey.Empty
-        visibleApps.isEmpty() -> ListStateKey.NoResults
+        visibleEntries.isEmpty() -> ListStateKey.NoResults
         else -> ListStateKey.Content
     }
     val installBusy = installState.isActive
@@ -312,7 +325,7 @@ fun AppListScreen(
 
                         ListStateKey.Content -> ContentList(
                             query = uiState.query,
-                            itemCount = visibleApps.size,
+                            itemCount = visibleEntries.size,
                             rowModels = rowModels,
                             installBusy = installBusy,
                             installState = installState,
@@ -321,6 +334,7 @@ fun AppListScreen(
                             onRefresh = onRefresh,
                             onOpenApp = onOpenApp,
                             onInstall = onInstall,
+                            onLaunchApp = onLaunchApp,
                         )
                     }
                 }
@@ -492,7 +506,8 @@ private fun ContentList(
     nestedScrollConnection: NestedScrollConnection,
     onRefresh: () -> Unit,
     onOpenApp: (String) -> Unit,
-    onInstall: (TestApp) -> Unit,
+    onInstall: (TestApp, ResolvedBuild) -> Unit,
+    onLaunchApp: (String) -> Unit,
 ) {
     val listState = rememberLazyListState()
     PullToRefreshBox(
@@ -545,8 +560,9 @@ private fun ContentList(
                     model = model,
                     installBusy = installBusy,
                     rowInstall = installState.takeIf { it.appId == model.app.id },
-                    onOpenApp = onOpenApp,
+                    onOpenDetail = onOpenApp,
                     onInstall = onInstall,
+                    onLaunchApp = onLaunchApp,
                 )
             }
         }
@@ -584,17 +600,46 @@ private val previewApps = listOf(
     ),
 )
 
+private val previewArtifact = ApkArtifact(
+    abi = "arm64-v8a",
+    sizeBytes = previewVersion.sizeBytes,
+    sha256 = null,
+    downloadPath = "${previewVersion.downloadPath}?abi=arm64-v8a",
+)
+
+private val previewEntries = listOf(
+    AppCatalogEntry(
+        app = previewApps[0],
+        version = previewVersion,
+        availability = BuildAvailability.Available(previewArtifact),
+        installed = null,
+        action = InstallAction.Install,
+    ),
+    AppCatalogEntry(
+        app = previewApps[1],
+        version = null,
+        availability = null,
+        installed = null,
+        action = InstallAction.Unsupported,
+    ),
+).associateBy { it.app.id }
+
 @Preview(showBackground = true, widthDp = 360, heightDp = 780)
 @Composable
 private fun AppListLoadedPreview() {
     MyTestflightTheme {
         AppListScreen(
-            uiState = AppListUiState(isLoading = false, apps = previewApps),
+            uiState = AppListUiState(
+                isLoading = false,
+                apps = previewApps,
+                resolutions = previewEntries,
+            ),
             installState = InstallState(),
             snackbarHostState = remember { SnackbarHostState() },
             onRefresh = {},
             onQueryChange = {},
-            onInstall = {},
+            onInstall = { _, _ -> },
+            onLaunchApp = {},
             onOpenApp = {},
             onOpenSettings = {},
         )
@@ -611,7 +656,8 @@ private fun AppListEmptyPreview() {
             snackbarHostState = remember { SnackbarHostState() },
             onRefresh = {},
             onQueryChange = {},
-            onInstall = {},
+            onInstall = { _, _ -> },
+            onLaunchApp = {},
             onOpenApp = {},
             onOpenSettings = {},
         )
@@ -631,7 +677,8 @@ private fun AppListErrorPreview() {
             snackbarHostState = remember { SnackbarHostState() },
             onRefresh = {},
             onQueryChange = {},
-            onInstall = {},
+            onInstall = { _, _ -> },
+            onLaunchApp = {},
             onOpenApp = {},
             onOpenSettings = {},
         )
@@ -643,7 +690,11 @@ private fun AppListErrorPreview() {
 private fun AppListInstallingPreview() {
     MyTestflightTheme {
         AppListScreen(
-            uiState = AppListUiState(isLoading = false, apps = previewApps),
+            uiState = AppListUiState(
+                isLoading = false,
+                apps = previewApps,
+                resolutions = previewEntries,
+            ),
             installState = InstallState(
                 appId = "crm",
                 appName = "Internal CRM",
@@ -654,7 +705,8 @@ private fun AppListInstallingPreview() {
             snackbarHostState = remember { SnackbarHostState() },
             onRefresh = {},
             onQueryChange = {},
-            onInstall = {},
+            onInstall = { _, _ -> },
+            onLaunchApp = {},
             onOpenApp = {},
             onOpenSettings = {},
         )

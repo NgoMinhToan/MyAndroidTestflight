@@ -1,6 +1,6 @@
 package com.mycompany.testflight.domain.installer
 
-import com.mycompany.testflight.domain.model.AppVersion
+import com.mycompany.testflight.domain.apk.ResolvedBuild
 import com.mycompany.testflight.domain.model.TestApp
 import kotlinx.coroutines.flow.Flow
 
@@ -24,5 +24,5 @@ sealed interface InstallStatus {
 }
 
 interface ApkInstaller {
-    fun install(app: TestApp, version: AppVersion): Flow<InstallStatus>
+    fun install(app: TestApp, build: ResolvedBuild): Flow<InstallStatus>
 }
