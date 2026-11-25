@@ -261,7 +261,7 @@ private fun ButtonRow(
     }
 }
 
-private val markerRegex = Regex("<!--\\s*mytestflight-release\\s*\\{[\\s\\S]*?}\\s*-->")
+private val markerRegex = Regex("<!--\\s*mytestflight-release\\s*\\{[\\s\\S]*?\\}\\s*-->")
 
 private fun stripMarker(body: String): String = body.replace(markerRegex, "")
 

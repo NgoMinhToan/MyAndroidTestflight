@@ -46,8 +46,10 @@ object ReleaseBodyParser {
         isLenient = true
     }
 
+    // Android's ICU regex engine rejects a bare "}" after a quantifier, unlike java.util.regex
+    // on the JVM, so the closing brace must be escaped.
     private val markerRegex = Regex(
-        pattern = "<!--\\s*mytestflight-release\\s*(\\{[\\s\\S]*?})\\s*-->",
+        pattern = "<!--\\s*mytestflight-release\\s*(\\{[\\s\\S]*?\\})\\s*-->",
     )
     private val versionRegex = Regex(
         pattern = "^##\\s*Version\\s+v?([^\\s]+)\\s*$",
