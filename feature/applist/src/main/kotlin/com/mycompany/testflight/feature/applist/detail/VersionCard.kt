@@ -25,6 +25,7 @@ import com.mycompany.testflight.designsystem.tokens.FriendlyDimens
 import com.mycompany.testflight.designsystem.tokens.FriendlyType
 import com.mycompany.testflight.designsystem.tokens.PillShape
 import com.mycompany.testflight.designsystem.tokens.TestflightColors
+import com.mycompany.testflight.domain.apk.ResolvedBuild
 import com.mycompany.testflight.domain.model.AppVersion
 import com.mycompany.testflight.feature.applist.R
 import com.mycompany.testflight.feature.applist.components.InstallPill
@@ -38,13 +39,14 @@ import java.util.Locale
 fun VersionCard(
     appName: String,
     version: AppVersion,
+    build: ResolvedBuild?,
     isLatest: Boolean,
     rowInstall: InstallState?,
     installBusy: Boolean,
-    onInstall: (AppVersion) -> Unit,
+    onInstall: (ResolvedBuild) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val sizeText = rememberShortFileSize(version.sizeBytes)
+    val sizeText = rememberShortFileSize(build?.artifact?.sizeBytes ?: version.sizeBytes)
     val dateText = rememberFormattedPublishedDate(version.publishedAt, FormatStyle.SHORT)
     val minSdk = version.minSdk
     val meta = if (minSdk != null) {
@@ -122,19 +124,27 @@ fun VersionCard(
                 ) {
                     Spacer(Modifier.weight(1f))
                     InstallPill(
-                        idleLabel = stringResource(R.string.detail_install_this_version),
+                        label = if (build != null) {
+                            stringResource(R.string.detail_install_this_version)
+                        } else {
+                            stringResource(R.string.unsupported_build)
+                        },
                         state = rowInstall,
                         installBusy = installBusy,
-                        hasBuild = true,
-                        onClick = { onInstall(version) },
+                        enabled = build != null,
+                        onClick = { build?.let(onInstall) },
                         idleContainerColor = TestflightColors.Cream,
                         idleContentColor = TestflightColors.Navy,
                         textStyle = FriendlyType.VersionPillLabel,
-                        contentDescription = stringResource(
-                            R.string.detail_install_version_content_description,
-                            appName,
-                            version.versionName,
-                        ),
+                        contentDescription = if (build != null) {
+                            stringResource(
+                                R.string.detail_install_version_content_description,
+                                appName,
+                                version.versionName,
+                            )
+                        } else {
+                            stringResource(R.string.unsupported_content_description, appName)
+                        },
                     )
                 }
             }

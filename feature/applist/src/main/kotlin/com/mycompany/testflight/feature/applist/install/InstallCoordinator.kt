@@ -1,9 +1,9 @@
 package com.mycompany.testflight.feature.applist.install
 
 import com.mycompany.testflight.designsystem.text.UiText
+import com.mycompany.testflight.domain.apk.ResolvedBuild
 import com.mycompany.testflight.domain.di.ApplicationScope
 import com.mycompany.testflight.domain.installer.InstallStatus
-import com.mycompany.testflight.domain.model.AppVersion
 import com.mycompany.testflight.domain.model.TestApp
 import com.mycompany.testflight.domain.usecase.InstallAppUseCase
 import com.mycompany.testflight.feature.applist.R
@@ -37,19 +37,19 @@ class InstallCoordinator @Inject constructor(
 
     private var job: Job? = null
 
-    fun install(app: TestApp, version: AppVersion) {
+    fun install(app: TestApp, build: ResolvedBuild) {
         if (job?.isActive == true) return
 
         _state.value = InstallState(
             appId = app.id,
             appName = app.name,
-            versionName = version.versionName,
+            versionName = build.version.versionName,
             stage = InstallStage.Downloading,
             progress = null,
         )
 
         job = scope.launch {
-            installApp(app, version)
+            installApp(app, build)
                 .catch { error ->
                     if (error is CancellationException) throw error
                     _events.tryEmit(

@@ -36,45 +36,46 @@ import com.mycompany.testflight.feature.applist.install.InstallStage
 import com.mycompany.testflight.feature.applist.install.InstallState
 import kotlin.math.roundToInt
 
-private enum class PillPhase { Idle, NoBuild, Busy, Downloading, Verifying, Launching }
+private enum class PillPhase { Idle, Disabled, Busy, Downloading, Verifying, Launching }
 
 /**
- * Install pill used in list rows and version cards. The phase drives the animated colors and
- * the label swap; progress text inside the Downloading phase updates without a new transition.
+ * The single action pill used in list rows, the detail header, and version cards. The label is
+ * supplied by the caller (Install / Update / Open / Unsupported) while download phases animate
+ * independently of it.
  */
 @Composable
 fun InstallPill(
-    idleLabel: String,
+    label: String,
     state: InstallState?,
     installBusy: Boolean,
-    hasBuild: Boolean,
+    enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     idleContainerColor: Color = TestflightColors.CoralStrong,
     idleContentColor: Color = TestflightColors.White,
-    unavailableLabel: String = "—",
     textStyle: TextStyle = FriendlyType.PillLabel,
     contentDescription: String? = null,
-    unavailableContentDescription: String? = null,
 ) {
     val phase = when {
         state?.stage == InstallStage.Downloading -> PillPhase.Downloading
         state?.stage == InstallStage.Verifying -> PillPhase.Verifying
         state?.stage == InstallStage.Launching -> PillPhase.Launching
-        !hasBuild -> PillPhase.NoBuild
+        !enabled -> PillPhase.Disabled
         installBusy -> PillPhase.Busy
         else -> PillPhase.Idle
     }
     val containerTarget = when (phase) {
         PillPhase.Downloading, PillPhase.Verifying, PillPhase.Launching ->
             TestflightColors.Navy
-        PillPhase.NoBuild -> TestflightColors.DisabledFill
+
+        PillPhase.Disabled -> TestflightColors.DisabledFill
         else -> idleContainerColor
     }
     val contentTarget = when (phase) {
         PillPhase.Downloading, PillPhase.Verifying, PillPhase.Launching ->
             TestflightColors.White
-        PillPhase.NoBuild -> TestflightColors.DisabledText
+
+        PillPhase.Disabled -> TestflightColors.DisabledText
         else -> idleContentColor
     }
     val container by animateColorAsState(
@@ -87,14 +88,8 @@ fun InstallPill(
         animationSpec = tween(180),
         label = "pillContent",
     )
-    val enabled = state == null && hasBuild && !installBusy
-    val dim = installBusy && state == null && hasBuild
-    val semanticsDescription = when {
-        state != null -> null
-        !hasBuild -> unavailableContentDescription ?: contentDescription
-        enabled -> contentDescription
-        else -> null
-    }
+    val clickable = state == null && enabled && !installBusy
+    val dim = installBusy && state == null && enabled
 
     CompositionLocalProvider(LocalContentColor provides content) {
         Box(
@@ -102,10 +97,10 @@ fun InstallPill(
                 .alpha(if (dim) 0.4f else 1f)
                 .minimumInteractiveComponentSize()
                 .clip(PillShape)
-                .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+                .clickable(enabled = clickable, role = Role.Button, onClick = onClick)
                 .semantics {
-                    if (semanticsDescription != null) {
-                        this.contentDescription = semanticsDescription
+                    if (contentDescription != null) {
+                        this.contentDescription = contentDescription
                     }
                 },
             contentAlignment = Alignment.Center,
@@ -135,8 +130,7 @@ fun InstallPill(
 
                             PillPhase.Verifying -> stringResource(R.string.verifying)
                             PillPhase.Launching -> stringResource(R.string.opening_installer)
-                            PillPhase.NoBuild -> unavailableLabel
-                            PillPhase.Busy, PillPhase.Idle -> idleLabel
+                            PillPhase.Idle, PillPhase.Disabled, PillPhase.Busy -> label
                         },
                         style = textStyle,
                         color = content,

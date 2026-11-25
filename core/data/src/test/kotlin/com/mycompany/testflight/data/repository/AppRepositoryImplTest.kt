@@ -4,6 +4,7 @@ import com.mycompany.testflight.data.remote.TestflightApi
 import com.mycompany.testflight.data.remote.dto.AppDto
 import com.mycompany.testflight.data.remote.dto.AppResponseDto
 import com.mycompany.testflight.data.remote.dto.AppsResponseDto
+import com.mycompany.testflight.data.remote.dto.ArtifactDto
 import com.mycompany.testflight.data.remote.dto.VersionDto
 import com.mycompany.testflight.domain.error.AppError
 import com.mycompany.testflight.domain.settings.ServerSettingsRepository
@@ -93,6 +94,39 @@ class AppRepositoryImplTest {
 
         assertEquals("demo", details.app.id)
         assertEquals(listOf("1.0.0", "0.9.0"), details.versions.map { it.versionName })
+    }
+
+    @Test
+    fun `maps per-abi artifacts and drops unusable entries`() = runTest {
+        val withArtifacts = versionDto.copy(
+            artifacts = listOf(
+                ArtifactDto(
+                    abi = "arm64-v8a",
+                    sizeBytes = 2_048L,
+                    sha256 = "abc",
+                    downloadPath = "/api/v1/apps/demo/versions/1.0.0/download?abi=arm64-v8a",
+                ),
+                ArtifactDto(
+                    abi = "universal",
+                    sizeBytes = 4_096L,
+                    sha256 = null,
+                    downloadPath = "/api/v1/apps/demo/versions/1.0.0/download?abi=universal",
+                ),
+                ArtifactDto(abi = "", downloadPath = "/ignored.apk"),
+                ArtifactDto(abi = "x86_64", downloadPath = ""),
+            ),
+        )
+        val api = FakeApi(
+            appsResponse = AppsResponseDto(
+                listOf(appDto.copy(latestVersion = withArtifacts)),
+            ),
+        )
+        val repository = AppRepositoryImpl(api, FakeServerSettings("http://127.0.0.1:8080"))
+
+        val resolved = repository.getApps().getOrThrow().single().latestVersion
+
+        assertEquals(listOf("arm64-v8a", "universal"), resolved?.artifacts?.map { it.abi })
+        assertEquals(2_048L, resolved?.artifacts?.first()?.sizeBytes)
     }
 
     @Test

@@ -1,17 +1,26 @@
 package com.mycompany.testflight.feature.applist
 
 import com.mycompany.testflight.designsystem.text.UiText
+import com.mycompany.testflight.domain.apk.ResolvedBuild
+import com.mycompany.testflight.domain.device.DeviceProfile
+import com.mycompany.testflight.domain.device.DeviceProfileProvider
 import com.mycompany.testflight.domain.error.AppError
 import com.mycompany.testflight.domain.installer.ApkInstaller
+import com.mycompany.testflight.domain.installer.AppLauncher
+import com.mycompany.testflight.domain.installer.InstallAction
 import com.mycompany.testflight.domain.installer.InstallStatus
+import com.mycompany.testflight.domain.model.ApkArtifact
 import com.mycompany.testflight.domain.model.AppDetails
 import com.mycompany.testflight.domain.model.AppVersion
+import com.mycompany.testflight.domain.model.InstalledApp
 import com.mycompany.testflight.domain.model.TestApp
 import com.mycompany.testflight.domain.repository.AppRepository
+import com.mycompany.testflight.domain.repository.InstalledAppRepository
 import com.mycompany.testflight.domain.settings.ServerSettingsRepository
 import com.mycompany.testflight.domain.settings.ServerUrlValidation
-import com.mycompany.testflight.domain.usecase.GetAppsUseCase
+import com.mycompany.testflight.domain.usecase.GetCatalogUseCase
 import com.mycompany.testflight.domain.usecase.InstallAppUseCase
+import com.mycompany.testflight.domain.usecase.OpenAppUseCase
 import com.mycompany.testflight.feature.applist.install.InstallCoordinator
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -44,6 +53,15 @@ class AppListViewModelTest {
         downloadPath = "/api/v1/apps/demo/versions/1.0.0/download",
     )
 
+    private val artifact = ApkArtifact(
+        abi = "universal",
+        sizeBytes = version.sizeBytes,
+        sha256 = null,
+        downloadPath = version.downloadPath,
+    )
+
+    private val build = ResolvedBuild(version, artifact)
+
     private val app = TestApp(
         id = "demo",
         name = "Demo App",
@@ -60,6 +78,7 @@ class AppListViewModelTest {
         runCurrent()
 
         assertEquals(listOf(app), viewModel.uiState.value.apps)
+        assertEquals(InstallAction.Install, viewModel.uiState.value.resolutions["demo"]?.action)
         assertFalse(viewModel.uiState.value.isLoading)
         assertEquals(null, viewModel.uiState.value.error)
     }
@@ -101,14 +120,103 @@ class AppListViewModelTest {
     }
 
     @Test
-    fun `install delegates to the coordinator`() = runTest {
+    fun `an installed app behind the server offers an update`() = runTest {
+        val installed = mapOf("com.demo" to InstalledApp("com.demo", versionCode = 0))
+        val viewModel = createViewModel(
+            repository = FakeAppRepository(Result.success(listOf(app))),
+            installed = installed,
+        )
+        runCurrent()
+
+        assertEquals(InstallAction.Update, viewModel.uiState.value.resolutions["demo"]?.action)
+    }
+
+    @Test
+    fun `an up-to-date installed app offers open`() = runTest {
+        val installed = mapOf("com.demo" to InstalledApp("com.demo", versionCode = 1))
+        val viewModel = createViewModel(
+            repository = FakeAppRepository(Result.success(listOf(app))),
+            installed = installed,
+        )
+        runCurrent()
+
+        assertEquals(InstallAction.Open, viewModel.uiState.value.resolutions["demo"]?.action)
+    }
+
+    @Test
+    fun `refreshing installed packages updates actions without reloading the catalog`() = runTest {
+        val repository = FakeAppRepository(Result.success(listOf(app)))
+        val installedRepository = FakeInstalledAppRepository(
+            mapOf("com.demo" to InstalledApp("com.demo", versionCode = 1)),
+        )
+        val viewModel = createViewModel(repository, installedRepository = installedRepository)
+        runCurrent()
+        assertEquals(1, repository.calls)
+
+        viewModel.refreshInstalled()
+        runCurrent()
+
+        assertEquals(1, repository.calls)
+        assertEquals(InstallAction.Open, viewModel.uiState.value.resolutions["demo"]?.action)
+    }
+
+    @Test
+    fun `falls back to the newest older build that supports the device`() = runTest {
+        val incompatible = version.copy(
+            versionName = "2.0.0",
+            versionCode = 20,
+            artifacts = listOf(
+                ApkArtifact(
+                    abi = "x86_64",
+                    sizeBytes = 1_024L,
+                    sha256 = null,
+                    downloadPath = "/api/v1/apps/demo/versions/2.0.0/download?abi=x86_64",
+                ),
+            ),
+        )
+        val compatible = version.copy(
+            versionName = "1.5.0",
+            versionCode = 15,
+            artifacts = listOf(
+                ApkArtifact(
+                    abi = "arm64-v8a",
+                    sizeBytes = 2_048L,
+                    sha256 = null,
+                    downloadPath = "/api/v1/apps/demo/versions/1.5.0/download?abi=arm64-v8a",
+                ),
+            ),
+        )
+        val latestUnsupported = app.copy(latestVersion = incompatible)
+        val repository = FakeAppRepository(
+            apps = Result.success(listOf(latestUnsupported)),
+            details = Result.success(
+                AppDetails(
+                    app = latestUnsupported,
+                    versions = listOf(incompatible, compatible),
+                ),
+            ),
+        )
+
+        val viewModel = createViewModel(repository)
+        runCurrent()
+
+        val entry = viewModel.uiState.value.resolutions["demo"]
+        assertEquals("1.5.0", entry?.version?.versionName)
+        assertEquals(InstallAction.Install, entry?.action)
+        assertEquals("arm64-v8a", entry?.build?.artifact?.abi)
+        assertEquals(1, repository.detailsCalls)
+    }
+
+    @Test
+    fun `install delegates the resolved build to the coordinator`() = runTest {
         val installer = FakeInstaller(Channel<InstallStatus>(Channel.UNLIMITED).receiveAsFlow())
         val viewModel = createViewModel(
             repository = FakeAppRepository(Result.success(listOf(app))),
             installer = installer,
         )
+        runCurrent()
 
-        viewModel.install(app)
+        viewModel.install(app, build)
         runCurrent()
 
         assertEquals(1, installer.calls)
@@ -122,27 +230,64 @@ class AppListViewModelTest {
         installer: ApkInstaller = FakeInstaller(
             Channel<InstallStatus>(Channel.UNLIMITED).receiveAsFlow(),
         ),
+        installed: Map<String, InstalledApp> = emptyMap(),
+        installedRepository: FakeInstalledAppRepository = FakeInstalledAppRepository(installed),
+        launcher: AppLauncher = FakeAppLauncher(),
     ): AppListViewModel {
         val coordinator = InstallCoordinator(InstallAppUseCase(installer), backgroundScope)
         return AppListViewModel(
-            getApps = GetAppsUseCase(repository),
+            getCatalog = GetCatalogUseCase(
+                repository = repository,
+                installedRepository = installedRepository,
+                deviceProfileProvider = FakeDeviceProfileProvider(),
+            ),
             installCoordinator = coordinator,
+            installedRepository = installedRepository,
+            openApp = OpenAppUseCase(launcher),
             serverSettings = settings,
         )
     }
 
     private class FakeAppRepository(
         private val apps: Result<List<TestApp>>,
+        private val details: Result<AppDetails>? = null,
     ) : AppRepository {
         var calls = 0
+        var detailsCalls = 0
 
         override suspend fun getApps(): Result<List<TestApp>> {
             calls++
             return apps
         }
 
-        override suspend fun getApp(id: String): Result<AppDetails> =
-            Result.failure(AppError.Unexpected())
+        override suspend fun getApp(id: String): Result<AppDetails> {
+            detailsCalls++
+            return details ?: Result.failure(AppError.Unexpected())
+        }
+    }
+
+    private class FakeInstalledAppRepository(
+        private val installed: Map<String, InstalledApp>,
+    ) : InstalledAppRepository {
+        override suspend fun installedApps(
+            packageNames: Collection<String>,
+        ): Map<String, InstalledApp> = installed.filterKeys { it in packageNames }
+    }
+
+    private class FakeDeviceProfileProvider : DeviceProfileProvider {
+        override fun current(): DeviceProfile = DeviceProfile(
+            supportedAbis = listOf("arm64-v8a", "armeabi-v7a"),
+            sdkInt = 34,
+        )
+    }
+
+    private class FakeAppLauncher : AppLauncher {
+        var opened: String? = null
+
+        override fun open(packageName: String): Boolean {
+            opened = packageName
+            return true
+        }
     }
 
     private class FakeInstaller(
@@ -150,7 +295,7 @@ class AppListViewModelTest {
     ) : ApkInstaller {
         var calls = 0
 
-        override fun install(app: TestApp, version: AppVersion): Flow<InstallStatus> {
+        override fun install(app: TestApp, build: ResolvedBuild): Flow<InstallStatus> {
             calls++
             return statuses
         }

@@ -20,12 +20,20 @@ import androidx.compose.ui.unit.sp
 import com.mycompany.testflight.designsystem.components.ProgressTrack
 import com.mycompany.testflight.designsystem.tokens.FriendlyType
 import com.mycompany.testflight.designsystem.tokens.TestflightColors
+import com.mycompany.testflight.domain.apk.ResolvedBuild
+import com.mycompany.testflight.domain.installer.InstallAction
+import com.mycompany.testflight.domain.model.AppVersion
 import com.mycompany.testflight.domain.model.TestApp
 import com.mycompany.testflight.feature.applist.R
 import com.mycompany.testflight.feature.applist.install.InstallState
+import com.mycompany.testflight.feature.applist.ui.installActionDescription
+import com.mycompany.testflight.feature.applist.ui.installActionLabel
 
 internal data class AppRowModel(
     val app: TestApp,
+    val version: AppVersion?,
+    val build: ResolvedBuild?,
+    val action: InstallAction,
     val accent: Color,
     val versionSummary: String,
 )
@@ -35,15 +43,17 @@ internal fun AppRow(
     model: AppRowModel,
     installBusy: Boolean,
     rowInstall: InstallState?,
-    onOpenApp: (String) -> Unit,
-    onInstall: (TestApp) -> Unit,
+    onOpenDetail: (String) -> Unit,
+    onInstall: (TestApp, ResolvedBuild) -> Unit,
+    onLaunchApp: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val app = model.app
+    val action = model.action
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(role = Role.Button) { onOpenApp(app.id) },
+            .clickable(role = Role.Button) { onOpenDetail(app.id) },
     ) {
         Row(
             modifier = Modifier
@@ -84,17 +94,35 @@ internal fun AppRow(
             }
             Spacer(Modifier.width(12.dp))
             InstallPill(
-                idleLabel = stringResource(R.string.install),
+                label = installActionLabel(action, noBuild = model.version == null),
                 state = rowInstall,
                 installBusy = installBusy,
-                hasBuild = app.latestVersion != null,
-                onClick = { onInstall(app) },
-                unavailableLabel = stringResource(R.string.list_no_build_pill),
-                unavailableContentDescription = stringResource(R.string.no_builds),
-                contentDescription = stringResource(
-                    R.string.install_content_description,
-                    app.name,
-                ),
+                enabled = action != InstallAction.Unsupported,
+                onClick = {
+                    when (action) {
+                        InstallAction.Install, InstallAction.Update ->
+                            model.build?.let { onInstall(app, it) }
+
+                        InstallAction.Open -> onLaunchApp(app.packageName)
+                        InstallAction.Unsupported -> Unit
+                    }
+                },
+                idleContainerColor = when (action) {
+                    InstallAction.Update -> TestflightColors.Navy
+                    InstallAction.Open -> TestflightColors.Cream
+                    else -> TestflightColors.CoralStrong
+                },
+                idleContentColor = when (action) {
+                    InstallAction.Open -> TestflightColors.Navy
+                    else -> TestflightColors.White
+                },
+                contentDescription = if (model.version == null &&
+                    action == InstallAction.Unsupported
+                ) {
+                    stringResource(R.string.no_builds)
+                } else {
+                    installActionDescription(action, app.name)
+                },
             )
         }
         // The divider is always the progress track at 0%; it starts after the icon so the

@@ -2,8 +2,10 @@ package com.mycompany.testflight.data.repository
 
 import com.mycompany.testflight.data.remote.TestflightApi
 import com.mycompany.testflight.data.remote.dto.AppDto
+import com.mycompany.testflight.data.remote.dto.ArtifactDto
 import com.mycompany.testflight.data.remote.dto.VersionDto
 import com.mycompany.testflight.domain.error.AppError
+import com.mycompany.testflight.domain.model.ApkArtifact
 import com.mycompany.testflight.domain.model.AppDetails
 import com.mycompany.testflight.domain.model.AppVersion
 import com.mycompany.testflight.domain.model.TestApp
@@ -71,5 +73,16 @@ class AppRepositoryImpl @Inject constructor(
         sizeBytes = sizeBytes,
         sha256 = sha256,
         downloadPath = downloadPath,
+        artifacts = artifacts.mapNotNull { it.toDomain() },
     )
+
+    private fun ArtifactDto.toDomain(): ApkArtifact? {
+        if (abi.isBlank() || downloadPath.isBlank()) return null
+        return ApkArtifact(
+            abi = abi,
+            sizeBytes = sizeBytes,
+            sha256 = sha256,
+            downloadPath = downloadPath,
+        )
+    }
 }

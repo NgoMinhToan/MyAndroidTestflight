@@ -3,6 +3,13 @@
     <string name="apps_title">TestFlight</string>
     <string name="refresh">Làm mới</string>
     <string name="install">Cài đặt</string>
+    <string name="update">Cập nhật</string>
+    <string name="open">Mở</string>
+    <string name="unsupported_build">Không hỗ trợ</string>
+    <string name="open_app_failed">Không mở được ứng dụng này.</string>
+    <string name="update_content_description">Cập nhật %1$s</string>
+    <string name="open_content_description">Mở %1$s</string>
+    <string name="unsupported_content_description">%1$s không được hỗ trợ trên thiết bị này</string>
     <string name="installing_percent">Đang cài %1$d%%</string>
     <string name="installing">Đang cài…</string>
     <string name="verifying">Đang xác minh…</string>

@@ -4,10 +4,10 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
+import com.mycompany.testflight.domain.apk.ResolvedBuild
 import com.mycompany.testflight.domain.installer.ApkInstaller
 import com.mycompany.testflight.domain.installer.InstallFailure
 import com.mycompany.testflight.domain.installer.InstallStatus
-import com.mycompany.testflight.domain.model.AppVersion
 import com.mycompany.testflight.domain.model.TestApp
 import com.mycompany.testflight.domain.settings.ServerSettingsRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -34,21 +34,29 @@ class ApkInstallerImpl @Inject constructor(
     private val serverSettings: ServerSettingsRepository,
 ) : ApkInstaller {
 
-    override fun install(app: TestApp, version: AppVersion): Flow<InstallStatus> = flow {
+    override fun install(app: TestApp, build: ResolvedBuild): Flow<InstallStatus> = flow {
         if (!context.packageManager.canRequestPackageInstalls()) {
             emit(InstallStatus.PermissionRequired)
             return@flow
         }
 
+        val version = build.version
+        val artifact = build.artifact
         val downloadUrl = serverSettings.serverUrl.value.toHttpUrlOrNull()
-            ?.let { base -> version.downloadPath.takeIf { it.isNotBlank() }?.let(base::resolve) }
+            ?.let { base ->
+                artifact.downloadPath.takeIf { it.isNotBlank() }?.let(base::resolve)
+            }
         if (downloadUrl == null) {
             emit(InstallStatus.Failed(InstallFailure.InvalidServerUrl))
             return@flow
         }
 
         val cacheDir = File(context.cacheDir, CACHE_DIR_NAME).apply { mkdirs() }
-        val target = File(cacheDir, "${sanitize(app.id)}-${sanitize(version.versionName)}.apk")
+        val target = File(
+            cacheDir,
+            listOf(app.id, version.versionName, artifact.abi)
+                .joinToString(separator = "-") { sanitize(it) } + ".apk",
+        )
         val partial = File(cacheDir, "${target.name}.part")
         var launched = false
 
@@ -98,7 +106,7 @@ class ApkInstallerImpl @Inject constructor(
 
                     emit(InstallStatus.Downloading(downloadedBytes, totalBytes))
 
-                    val expectedSha256 = version.sha256
+                    val expectedSha256 = artifact.sha256
                     if (expectedSha256 != null) {
                         emit(InstallStatus.Verifying)
                         val actualSha256 = digest.digest().toHex()
