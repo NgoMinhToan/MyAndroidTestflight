@@ -8,12 +8,18 @@ import com.mycompany.testflight.data.repository.AppRepositoryImpl
 import com.mycompany.testflight.data.settings.ServerSettingsRepositoryImpl
 import com.mycompany.testflight.data.settings.ServerUrlStore
 import com.mycompany.testflight.data.settings.SharedPreferencesServerUrlStore
+import com.mycompany.testflight.data.update.PackageManagerAppInfoProvider
+import com.mycompany.testflight.data.update.SharedPreferencesUpdateLocalStore
+import com.mycompany.testflight.data.update.UpdateRepositoryImpl
 import com.mycompany.testflight.domain.device.DeviceProfileProvider
 import com.mycompany.testflight.domain.installer.ApkInstaller
 import com.mycompany.testflight.domain.installer.AppLauncher
 import com.mycompany.testflight.domain.repository.AppRepository
 import com.mycompany.testflight.domain.repository.InstalledAppRepository
 import com.mycompany.testflight.domain.settings.ServerSettingsRepository
+import com.mycompany.testflight.domain.update.AppInfoProvider
+import com.mycompany.testflight.domain.update.UpdateLocalStore
+import com.mycompany.testflight.domain.update.UpdateRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -57,4 +63,18 @@ abstract class BindingsModule {
     abstract fun bindServerSettingsRepository(
         impl: ServerSettingsRepositoryImpl,
     ): ServerSettingsRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindUpdateRepository(impl: UpdateRepositoryImpl): UpdateRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindUpdateLocalStore(
+        impl: SharedPreferencesUpdateLocalStore,
+    ): UpdateLocalStore
+
+    @Binds
+    @Singleton
+    abstract fun bindAppInfoProvider(impl: PackageManagerAppInfoProvider): AppInfoProvider
 }

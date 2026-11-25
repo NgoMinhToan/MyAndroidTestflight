@@ -21,4 +21,16 @@
     <string name="settings_connection_in_use">In use</string>
     <string name="settings_connection_status">Status</string>
     <string name="settings_connection_ready">Ready</string>
+
+    <string name="settings_update_section">App updates</string>
+    <string name="settings_update_current">Current version</string>
+    <string name="settings_update_current_format">%1$s (build %2$d)</string>
+    <string name="settings_update_check">Check for updates</string>
+    <string name="settings_update_checking">Checking…</string>
+    <string name="settings_update_up_to_date">You\'re on the latest version</string>
+    <string name="settings_update_available">Version %1$s is available</string>
+    <string name="settings_update_downloading">Downloading update…</string>
+    <string name="settings_update_downloaded">Update downloaded. Open the update popup to install.</string>
+    <string name="settings_update_error">Couldn\'t check for updates</string>
+    <string name="settings_update_description">Updates come from the public GitHub releases of this app.</string>
 </resources>

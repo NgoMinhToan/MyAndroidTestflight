@@ -4,6 +4,11 @@ import com.mycompany.testflight.designsystem.text.UiText
 import com.mycompany.testflight.domain.settings.ServerSettingsRepository
 import com.mycompany.testflight.domain.settings.ServerUrlError
 import com.mycompany.testflight.domain.settings.ServerUrlValidation
+import com.mycompany.testflight.domain.update.AppInfoProvider
+import com.mycompany.testflight.domain.update.AppVersionInfo
+import com.mycompany.testflight.domain.update.UpdateController
+import com.mycompany.testflight.domain.update.UpdateError
+import com.mycompany.testflight.domain.update.UpdateState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,7 +31,7 @@ class SettingsViewModelTest {
     fun `initializes from the repository`() {
         val repository = FakeServerSettings("http://127.0.0.1:8080")
 
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = createViewModel(repository)
 
         assertEquals("http://127.0.0.1:8080", viewModel.uiState.value.input)
         assertEquals("http://127.0.0.1:8080", viewModel.uiState.value.savedUrl)
@@ -34,9 +39,18 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun `exposes the installed version`() {
+        val viewModel = createViewModel(FakeServerSettings("http://127.0.0.1:8080"))
+
+        assertEquals("0.1.0", viewModel.uiState.value.currentVersionName)
+        assertEquals(1L, viewModel.uiState.value.currentVersionCode)
+        assertEquals(SettingsUpdateStatus.Idle, viewModel.uiState.value.updateStatus)
+    }
+
+    @Test
     fun `empty input shows a localized error and does not save`() = runTest {
         val repository = FakeServerSettings("http://127.0.0.1:8080")
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = createViewModel(repository)
 
         viewModel.onInputChange("   ")
         viewModel.save()
@@ -52,7 +66,7 @@ class SettingsViewModelTest {
     @Test
     fun `invalid scheme shows a localized error`() = runTest {
         val repository = FakeServerSettings("http://127.0.0.1:8080")
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = createViewModel(repository)
 
         viewModel.onInputChange("ftp://example.com")
         viewModel.save()
@@ -67,7 +81,7 @@ class SettingsViewModelTest {
     @Test
     fun `saving a valid url updates the input saved url and repository`() = runTest {
         val repository = FakeServerSettings("http://127.0.0.1:8080")
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = createViewModel(repository)
         val savedMessage = async(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.messages.first()
         }
@@ -86,7 +100,7 @@ class SettingsViewModelTest {
     @Test
     fun `reset restores the default url`() = runTest {
         val repository = FakeServerSettings("https://example.com:9443")
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = createViewModel(repository)
         val resetMessage = async(UnconfinedTestDispatcher(testScheduler)) {
             viewModel.messages.first()
         }
@@ -103,7 +117,7 @@ class SettingsViewModelTest {
     @Test
     fun `editing the input clears a previous error`() = runTest {
         val repository = FakeServerSettings("http://127.0.0.1:8080")
-        val viewModel = SettingsViewModel(repository)
+        val viewModel = createViewModel(repository)
         viewModel.onInputChange("ftp://example.com")
         viewModel.save()
         runCurrent()
@@ -112,6 +126,38 @@ class SettingsViewModelTest {
 
         assertNull(viewModel.uiState.value.error)
     }
+
+    @Test
+    fun `checking for updates delegates to the shared controller`() {
+        val controller = FakeUpdateController()
+        val viewModel = createViewModel(FakeServerSettings("http://127.0.0.1:8080"), controller)
+
+        viewModel.checkForUpdates()
+
+        assertEquals(1, controller.manualChecks)
+        assertEquals(SettingsUpdateStatus.Checking, viewModel.uiState.value.updateStatus)
+    }
+
+    @Test
+    fun `maps update states to settings statuses`() {
+        val controller = FakeUpdateController()
+        val viewModel = createViewModel(FakeServerSettings("http://127.0.0.1:8080"), controller)
+
+        controller.state.value = UpdateState.UpToDate("0.1.0")
+        assertEquals(SettingsUpdateStatus.UpToDate, viewModel.uiState.value.updateStatus)
+
+        controller.state.value = UpdateState.Failed(null, UpdateError.Network)
+        assertEquals(SettingsUpdateStatus.Failed, viewModel.uiState.value.updateStatus)
+    }
+
+    private fun createViewModel(
+        repository: ServerSettingsRepository,
+        controller: UpdateController = FakeUpdateController(),
+    ): SettingsViewModel = SettingsViewModel(
+        repository = repository,
+        updateController = controller,
+        appInfo = FakeAppInfo,
+    )
 
     private class FakeServerSettings(initial: String) : ServerSettingsRepository {
         override val serverUrl = MutableStateFlow(initial)
@@ -134,6 +180,33 @@ class SettingsViewModelTest {
         override suspend fun resetToDefault() {
             serverUrl.value = defaultServerUrl
         }
+    }
+
+    private class FakeUpdateController : UpdateController {
+        override val state = MutableStateFlow<UpdateState>(UpdateState.Idle)
+        override val isDialogVisible = MutableStateFlow(false)
+        var manualChecks = 0
+
+        override fun autoCheckOnStart() = Unit
+
+        override fun checkForUpdates(manual: Boolean) {
+            if (manual) {
+                manualChecks++
+                state.value = UpdateState.Checking
+            }
+        }
+
+        override fun startDownload() = Unit
+
+        override fun dismissDialog() = Unit
+
+        override fun showDialog() = Unit
+
+        override fun launchInstaller() = Unit
+    }
+
+    private object FakeAppInfo : AppInfoProvider {
+        override val version = AppVersionInfo(versionName = "0.1.0", versionCode = 1L)
     }
 
     private companion object {

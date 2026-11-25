@@ -2,4 +2,41 @@
 <resources>
     <string name="nav_apps">Ứng dụng</string>
     <string name="nav_settings">Cài đặt</string>
+
+    <string name="update_channel_name">Cập nhật ứng dụng</string>
+    <string name="update_channel_description">Tải và cài đặt phiên bản mới của My TestFlight.</string>
+    <string name="update_notification_available_title">Có bản cập nhật</string>
+    <string name="update_notification_available_text">Phiên bản %1$s đã sẵn sàng để tải. Chạm để xem có gì mới.</string>
+    <string name="update_notification_downloading_title">Đang tải bản cập nhật</string>
+    <string name="update_notification_downloading_preparing">Đang chuẩn bị tải…</string>
+    <string name="update_notification_downloading_text">Phiên bản %1$s · %2$d%%</string>
+    <string name="update_notification_downloaded_title">Bản cập nhật đã sẵn sàng</string>
+    <string name="update_notification_downloaded_text">Đã tải phiên bản %1$s. Chạm để cài đặt.</string>
+    <string name="update_notification_permission_text">Hãy cho phép cài đặt từ ứng dụng này, sau đó chạm để cài.</string>
+    <string name="update_notification_error_title">Cập nhật thất bại</string>
+
+    <string name="update_error_network">Lỗi mạng. Kiểm tra kết nối và thử lại.</string>
+    <string name="update_error_server">GitHub hiện không cung cấp được bản cập nhật.</string>
+    <string name="update_error_no_release">Chưa có bản phát hành ổn định nào.</string>
+    <string name="update_error_no_asset">Bản phát hành này không có APK cho thiết bị của bạn.</string>
+    <string name="update_error_checksum">Tệp tải về không khớp mã kiểm tra.</string>
+    <string name="update_error_storage">Không thể lưu bản cập nhật đã tải.</string>
+    <string name="update_error_permission">Hãy cho phép cài đặt ứng dụng không rõ nguồn gốc để tiếp tục.</string>
+    <string name="update_error_no_installer">Thiết bị không có trình cài đặt gói.</string>
+    <string name="update_error_unexpected">Đã có lỗi xảy ra. Hãy thử lại.</string>
+
+    <string name="update_dialog_title">Có bản cập nhật</string>
+    <string name="update_dialog_version">Phiên bản %1$s</string>
+    <string name="update_dialog_downloading_title">Đang tải bản cập nhật</string>
+    <string name="update_dialog_downloaded_title">Bản cập nhật sẵn sàng để cài</string>
+    <string name="update_dialog_error_title">Không thể cập nhật</string>
+    <string name="update_dialog_progress">%1$d%%</string>
+    <string name="update_dialog_later">Để sau</string>
+    <string name="update_dialog_update">Cập nhật</string>
+    <string name="update_dialog_cancel">Huỷ</string>
+    <string name="update_dialog_install">Cài đặt</string>
+    <string name="update_dialog_retry">Thử lại</string>
+    <string name="update_dialog_close">Đóng</string>
+    <string name="update_dialog_checking">Đang kiểm tra cập nhật…</string>
+    <string name="update_dialog_no_notes">Bản này không có ghi chú phát hành.</string>
 </resources>

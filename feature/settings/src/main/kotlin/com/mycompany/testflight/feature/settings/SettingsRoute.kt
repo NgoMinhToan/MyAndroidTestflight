@@ -29,5 +29,6 @@ fun SettingsRoute() {
         onInputChange = viewModel::onInputChange,
         onSave = viewModel::save,
         onReset = viewModel::reset,
+        onCheckForUpdates = viewModel::checkForUpdates,
     )
 }

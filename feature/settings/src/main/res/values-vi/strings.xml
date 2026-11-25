@@ -21,4 +21,16 @@
     <string name="settings_connection_in_use">Đang dùng</string>
     <string name="settings_connection_status">Trạng thái</string>
     <string name="settings_connection_ready">Sẵn sàng</string>
+
+    <string name="settings_update_section">Cập nhật ứng dụng</string>
+    <string name="settings_update_current">Phiên bản hiện tại</string>
+    <string name="settings_update_current_format">%1$s (bản dựng %2$d)</string>
+    <string name="settings_update_check">Kiểm tra cập nhật</string>
+    <string name="settings_update_checking">Đang kiểm tra…</string>
+    <string name="settings_update_up_to_date">Bạn đang dùng phiên bản mới nhất</string>
+    <string name="settings_update_available">Đã có phiên bản %1$s</string>
+    <string name="settings_update_downloading">Đang tải bản cập nhật…</string>
+    <string name="settings_update_downloaded">Đã tải bản cập nhật. Mở hộp thoại cập nhật để cài đặt.</string>
+    <string name="settings_update_error">Không thể kiểm tra cập nhật</string>
+    <string name="settings_update_description">Bản cập nhật đến từ trang phát hành GitHub công khai của ứng dụng.</string>
 </resources>

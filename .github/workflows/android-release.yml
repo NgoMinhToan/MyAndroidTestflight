@@ -198,13 +198,40 @@ jobs:
             git push origin "$tag"
           fi
 
+      # Builds the release body from conventional commits since the previous release, plus a
+      # hidden JSON block the Android app parses for its update prompt. The current tag may
+      # already exist when main republishes a version, so peel it to find the real previous tag.
+      - name: Generate release notes
+        id: notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            prev_tag="$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true)"
+          else
+            prev_tag="$(git describe --tags --abbrev=0 HEAD 2>/dev/null || true)"
+          fi
+          echo "Previous release tag: ${prev_tag:-<none>}"
+          node scripts/generate-release-notes.mjs \
+            --version "${{ steps.version.outputs.version }}" \
+            --version-code "${{ steps.version.outputs.version_code }}" \
+            --tag "$tag" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --from "$prev_tag" \
+            --to HEAD \
+            --dist dist \
+            --out "$RUNNER_TEMP/release-notes.md"
+          echo "file=$RUNNER_TEMP/release-notes.md" >> "$GITHUB_OUTPUT"
+
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           tag="${{ steps.version.outputs.tag }}"
-          flags=(--title "MyTestflight Android ${{ steps.version.outputs.version }}" --generate-notes)
+          notes_file="${{ steps.notes.outputs.file }}"
+          flags=(--title "MyTestflight Android ${{ steps.version.outputs.version }}")
           if [ "${{ steps.version.outputs.prerelease }}" = "true" ]; then
             flags+=(--prerelease)
           fi
@@ -212,8 +239,9 @@ jobs:
             flags+=(--draft)
           fi
           if gh release view "$tag" >/dev/null 2>&1; then
-            echo "Release $tag already exists; replacing its assets."
+            echo "Release $tag already exists; updating its notes and replacing assets."
+            gh release edit "$tag" --notes-file "$notes_file" "${flags[@]}"
             gh release upload "$tag" dist/* --clobber
           else
-            gh release create "$tag" dist/* "${flags[@]}"
+            gh release create "$tag" dist/* --notes-file "$notes_file" "${flags[@]}"
           fi

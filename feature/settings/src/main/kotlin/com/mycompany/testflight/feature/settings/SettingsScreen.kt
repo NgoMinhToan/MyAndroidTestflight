@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Dns
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Restore
+import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -69,6 +70,7 @@ fun SettingsScreen(
     onInputChange: (String) -> Unit,
     onSave: () -> Unit,
     onReset: () -> Unit,
+    onCheckForUpdates: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val focusManager = LocalFocusManager.current
@@ -130,6 +132,18 @@ fun SettingsScreen(
             item(key = "connection_group") {
                 SettingsGroup {
                     ConnectionRows(savedUrl = uiState.savedUrl)
+                }
+                Spacer(Modifier.height(20.dp))
+            }
+            item(key = "update_header") {
+                SectionLabel(stringResource(R.string.settings_update_section))
+            }
+            item(key = "update_group") {
+                SettingsGroup {
+                    UpdateSection(
+                        uiState = uiState,
+                        onCheckForUpdates = onCheckForUpdates,
+                    )
                 }
             }
         }
@@ -298,6 +312,83 @@ private fun ConnectionRows(savedUrl: String) {
 }
 
 @Composable
+private fun UpdateSection(
+    uiState: SettingsUiState,
+    onCheckForUpdates: () -> Unit,
+) {
+    SettingsRow(
+        icon = Icons.Outlined.SystemUpdate,
+        title = stringResource(R.string.settings_update_current),
+        value = stringResource(
+            R.string.settings_update_current_format,
+            uiState.currentVersionName,
+            uiState.currentVersionCode,
+        ),
+    )
+    HorizontalDivider(
+        modifier = Modifier.padding(start = 54.dp),
+        thickness = 1.dp,
+        color = TestflightColors.Line,
+    )
+    Column(modifier = Modifier.padding(16.dp)) {
+        val (statusText, statusColor) = uiState.updateStatus.statusText()
+        Text(
+            text = statusText,
+            style = FriendlyType.Helper,
+            color = statusColor,
+        )
+        Spacer(Modifier.height(12.dp))
+        Button(
+            onClick = onCheckForUpdates,
+            enabled = uiState.updateStatus != SettingsUpdateStatus.Checking,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = TestflightColors.CoralStrong,
+                contentColor = TestflightColors.White,
+                disabledContainerColor = TestflightColors.ButtonDisabledFill,
+                disabledContentColor = TestflightColors.ButtonDisabledText,
+            ),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_update_check),
+                style = FriendlyType.Button,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsUpdateStatus.statusText(): Pair<String, Color> = when (this) {
+    SettingsUpdateStatus.Idle -> stringResource(R.string.settings_update_description) to
+        TestflightColors.TextSecondary
+
+    SettingsUpdateStatus.Checking -> stringResource(R.string.settings_update_checking) to
+        TestflightColors.Muted
+
+    SettingsUpdateStatus.UpToDate -> stringResource(R.string.settings_update_up_to_date) to
+        TestflightColors.ReadyGreen
+
+    is SettingsUpdateStatus.Available ->
+        stringResource(R.string.settings_update_available, versionName) to
+            TestflightColors.CoralStrong
+
+    is SettingsUpdateStatus.Downloading -> stringResource(R.string.settings_update_downloading) to
+        TestflightColors.Muted
+
+    is SettingsUpdateStatus.Downloaded -> stringResource(R.string.settings_update_downloaded) to
+        TestflightColors.ReadyGreen
+
+    SettingsUpdateStatus.Failed -> stringResource(R.string.settings_update_error) to
+        TestflightColors.ErrorText
+}
+
+@Composable
 private fun SettingsRow(
     icon: ImageVector,
     title: String,
@@ -346,11 +437,14 @@ private fun SettingsPreview() {
                 savedUrl = "http://10.0.2.2:8080",
                 defaultUrl = "http://10.0.2.2:8080",
                 error = UiText.Res(R.string.settings_url_error_path),
+                currentVersionName = "0.1.0",
+                currentVersionCode = 1,
             ),
             snackbarHostState = remember { SnackbarHostState() },
             onInputChange = {},
             onSave = {},
             onReset = {},
+            onCheckForUpdates = {},
         )
     }
 }
@@ -364,11 +458,15 @@ private fun SettingsReadyPreview() {
                 input = "http://10.0.2.2:8080",
                 savedUrl = "http://10.0.2.2:8080",
                 defaultUrl = "http://10.0.2.2:8080",
+                currentVersionName = "0.1.0",
+                currentVersionCode = 1,
+                updateStatus = SettingsUpdateStatus.UpToDate,
             ),
             snackbarHostState = remember { SnackbarHostState() },
             onInputChange = {},
             onSave = {},
             onReset = {},
+            onCheckForUpdates = {},
         )
     }
 }
