@@ -4,9 +4,10 @@ name: android-release
 # App Bundle. Every run is marked with a version: the tag is created (when missing) and a GitHub
 # release carries the files plus checksums.
 #
-# Pushing to main publishes automatically with the version from gradle.properties; pushing a tag
-# (v1.2.3) or running the workflow by hand still works. A version with a pre-release suffix
-# (v1.2.3-beta.1) is published as a pre-release.
+# A push to main only publishes when appVersionName in gradle.properties differs from the latest
+# release tag; pushes that leave the version alone run android-ci but are skipped here. Pushing a
+# tag (v1.2.3) or running the workflow by hand always publishes. A version with a pre-release
+# suffix (v1.2.3-beta.1) is published as a pre-release.
 on:
   push:
     branches:
@@ -37,7 +38,53 @@ env:
   BUILD_TOOLS: "37.0.0"
 
 jobs:
+  # Decides whether this run should publish at all. A main push is only a release when the
+  # version in gradle.properties moved past the latest v* tag; anything else is ordinary code
+  # that android-ci already tested and built.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.gate.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare appVersionName with the latest release tag
+        id: gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(sed -n 's/^appVersionName=//p' gradle.properties | tr -d '[:space:]' | head -n1)"
+          if [ -z "$current" ]; then
+            echo "::error::appVersionName is missing from gradle.properties."
+            exit 1
+          fi
+          # Tag pushes and manual runs always publish; only ordinary main pushes are gated.
+          if [ "${GITHUB_EVENT_NAME}" != "push" ] || [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "Releasing $current (tag push or manual run)."
+            exit 0
+          fi
+          last_tag="$(git describe --tags --abbrev=0 --match 'v*' HEAD 2>/dev/null || true)"
+          if [ -z "$last_tag" ]; then
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "No previous release tag; releasing $current."
+            exit 0
+          fi
+          last_version="$(git show "${last_tag}:gradle.properties" 2>/dev/null \
+            | sed -n 's/^appVersionName=//p' | tr -d '[:space:]' | head -n1 || true)"
+          if [ "$current" = "$last_version" ]; then
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            echo "appVersionName is still $current (latest release $last_tag); skipping."
+          else
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+            echo "appVersionName changed ${last_version:-<unknown>} -> $current; releasing."
+          fi
+
   release:
+    needs: check
+    if: needs.check.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -72,8 +119,9 @@ jobs:
           if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             version="${GITHUB_REF_NAME#v}"
           elif [ "${GITHUB_EVENT_NAME}" = "push" ]; then
-            # A main push republishes the current appVersionName: the tag and release are reused
-            # and their assets replaced, so the download links stay stable.
+            # The gate only lets a main push through when appVersionName changed, so this is a
+            # genuinely new version. If its tag already exists (re-run, manual dispatch), the tag
+            # and release are reused and their assets replaced, keeping download links stable.
             version="$default_version"
           else
             version="${INPUT_VERSION:-$default_version}"
