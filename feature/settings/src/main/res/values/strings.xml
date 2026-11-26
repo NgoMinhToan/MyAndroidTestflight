@@ -4,8 +4,6 @@
     <string name="settings_server_section">Server</string>
     <string name="settings_server_url_label">Server URL</string>
     <string name="settings_server_url_hint">http://10.0.2.2:8080</string>
-    <string name="settings_server_url_helper">Use an http(s) origin with no path, for example http://10.0.2.2:8080.</string>
-    <string name="settings_default_url_format">Default: %1$s</string>
     <string name="settings_save">Save</string>
     <string name="settings_reset">Reset to default</string>
     <string name="settings_saved">Server URL saved</string>
@@ -16,7 +14,6 @@
     <string name="settings_url_error_host">The URL needs a host name.</string>
     <string name="settings_url_error_path">Use only the server origin, without a path, query, or fragment.</string>
     <string name="settings_url_error_port">The port must be between 1 and 65535.</string>
-    <string name="settings_description">The server address controls the app catalog and where APKs are downloaded from.</string>
     <string name="settings_connection_section">Connection</string>
     <string name="settings_connection_in_use">In use</string>
     <string name="settings_connection_status">Status</string>

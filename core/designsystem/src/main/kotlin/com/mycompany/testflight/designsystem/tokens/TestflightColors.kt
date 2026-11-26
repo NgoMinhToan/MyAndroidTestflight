@@ -32,6 +32,4 @@ object TestflightColors {
     val ResetFill = Color(0xFFFBF3F0)
     val GhostFill = Color(0xFFF7EFEC)
     val ReadyGreen = Color(0xFF1F8A5B)
-    val SettingsBackground = Color(0xFFF4F4F7)
-    val SettingsGroup = White
 }

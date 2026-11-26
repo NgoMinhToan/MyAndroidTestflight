@@ -107,7 +107,7 @@ private fun Title(state: UpdateState) {
         Spacer(Modifier.height(4.dp))
         Text(
             text = stringResource(R.string.update_dialog_version, version),
-            style = FriendlyType.SectionLabel,
+            style = FriendlyType.SheetSection,
             color = TestflightColors.CoralStrong,
         )
     }
@@ -154,7 +154,7 @@ private fun NotesSection(section: ReleaseSection) {
     if (section.title.isNotBlank()) {
         Text(
             text = section.title,
-            style = FriendlyType.SectionLabel,
+            style = FriendlyType.SheetSection,
             color = TestflightColors.CoralStrong,
             modifier = Modifier.padding(top = 6.dp, bottom = 4.dp),
         )

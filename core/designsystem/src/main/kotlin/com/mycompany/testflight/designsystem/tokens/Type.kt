@@ -90,31 +90,6 @@ object FriendlyType {
         fontSize = 16.sp,
         lineHeight = 22.sp,
     )
-    val SettingsTitle = TextStyle(
-        fontFamily = JakartaSans,
-        fontWeight = FontWeight.ExtraBold,
-        fontSize = 28.sp,
-        lineHeight = 34.sp,
-        letterSpacing = (-0.02f).em,
-    )
-    val SectionLabel = TextStyle(
-        fontFamily = JakartaSans,
-        fontWeight = FontWeight.Bold,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-    )
-    val SettingsRowTitle = TextStyle(
-        fontFamily = JakartaSans,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-    )
-    val SettingsRowValue = TextStyle(
-        fontFamily = JakartaSans,
-        fontWeight = FontWeight.Medium,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-    )
     val Subtitle = TextStyle(
         fontFamily = JakartaSans,
         fontWeight = FontWeight.SemiBold,
