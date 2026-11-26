@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.mycompany.testflight.feature.settings"
+    namespace = "dev.minhtoan.mytestflight.feature.settings"
     compileSdk = 37
     compileSdkMinor = 2
 

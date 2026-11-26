@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.mycompany.testflight.designsystem"
+    namespace = "dev.minhtoan.mytestflight.designsystem"
     compileSdk = 37
     compileSdkMinor = 2
 

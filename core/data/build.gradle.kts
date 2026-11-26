@@ -22,7 +22,7 @@ require(Regex("^https?://[^/@?#\\s]+/?$").matches(normalizedServerUrl)) {
 }
 
 android {
-    namespace = "com.mycompany.testflight.data"
+    namespace = "dev.minhtoan.mytestflight.data"
     compileSdk = 37
     compileSdkMinor = 2
 

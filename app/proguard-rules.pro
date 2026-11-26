@@ -11,7 +11,7 @@
 # Retrofit resolves endpoint annotations and generic return/parameter types reflectively.
 -keepattributes Signature, InnerClasses, EnclosingMethod
 -keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
--keep,allowobfuscation,allowshrinking interface com.mycompany.testflight.data.remote.TestflightApi
+-keep,allowobfuscation,allowshrinking interface dev.minhtoan.mytestflight.data.remote.TestflightApi
 -keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
 # R8 full mode strips generic signatures from interfaces that are only referenced as types.
 -if interface * { @retrofit2.http.* <methods>; }
@@ -23,10 +23,10 @@
 # Generated serializers are looked up through the companion object and keep JSON keys in
 # @SerialName, so the DTO members must survive obfuscation of their annotations.
 -keepattributes RuntimeVisibleAnnotations, AnnotationDefault
--keepclassmembers class com.mycompany.testflight.data.remote.dto.** {
+-keepclassmembers class dev.minhtoan.mytestflight.data.remote.dto.** {
     *** Companion;
 }
--keepclasseswithmembers class com.mycompany.testflight.data.remote.dto.** {
+-keepclasseswithmembers class dev.minhtoan.mytestflight.data.remote.dto.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
 

@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.mycompany.testflight.feature.applist"
+    namespace = "dev.minhtoan.mytestflight.feature.applist"
     compileSdk = 37
     compileSdkMinor = 2
 

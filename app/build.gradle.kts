@@ -34,12 +34,12 @@ val releaseKeyAlias = signingValue("releaseKeyAlias", "RELEASE_KEY_ALIAS")
 val releaseKeyPassword = signingValue("releaseKeyPassword", "RELEASE_KEY_PASSWORD")
 
 android {
-    namespace = "com.mycompany.testflight"
+    namespace = "dev.minhtoan.mytestflight"
     compileSdk = 37
     compileSdkMinor = 2
 
     defaultConfig {
-        applicationId = "com.mycompany.testflight"
+        applicationId = "dev.minhtoan.mytestflight"
         minSdk = 26
         targetSdk = 37
         versionCode = appVersionCode
